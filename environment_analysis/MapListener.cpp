@@ -1,3 +1,6 @@
+// Infra
+#include <vector>
+
 // ROS
 #include "ros/ros.h"
 
@@ -15,6 +18,11 @@
 #include "image_transport/image_transport.h"
 #include "opencv2/highgui/highgui.hpp"
 #include "cv_bridge/cv_bridge.h"
+#include "opencv2/features2d.hpp"
+#include "opencv2/core.hpp"
+#include "opencv2/xfeatures2d.hpp"
+
+#include "SalientPoint.hpp"
 
 /*
 ROADMAP:
@@ -22,19 +30,60 @@ ROADMAP:
 [x] Get the position and colors of all points in the cloud.
 [x] Get the position and orientation of the camera.
 [x] Get the live RGB image of the scene from the camera.
+[x] Get the SIFT features from the live RGB image.
+[ ] Calculate the saliency score for each keypoint.
+	- TODO: Should use three standard deviations.
 */
+
+double calculateSaliencyMean(const std::vector<SalientPoint>& points)
+{
+	double mean = 0;
+	for (const auto& point : points)
+		mean += point.getSaliencyScore();
+	mean /= points.size();
+	return mean;
+}
+
+double calculateSaliencySD(const std::vector<SalientPoint>& points)
+{
+	double mean = calculateSaliencyMean(points);
+	double sum_of_differences = 0;
+	for (const auto& point : points)
+		sum_of_differences += std::pow(point.getSaliencyScore() - mean, 2);
+	return std::sqrt(((double)1 / (double)points.size()) * sum_of_differences);
+}
 
 void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
 {
-	try
-	{
-		cv::imshow("view", cv_bridge::toCvShare(img_msg, "bgr8")->image);
-		cv::waitKey(30);
-	}
-	catch (cv_bridge::Exception& e)
-	{
-		ROS_ERROR("Could not convert from '%s' to 'bgr8'.", img_msg->encoding.c_str());
-	}
+	// Convert from the ROS image message to an OpenCV image
+	cv::Mat image = cv_bridge::toCvCopy(img_msg)->image;
+
+	// Detect the ORB key points in the image
+	std::vector<cv::KeyPoint> keypoints;
+	cv::Ptr<cv::ORB> detector = cv::ORB::create();
+	detector->detect(image, keypoints);
+
+	// Create the vector containing the wrapped salient keypoints
+	std::vector<SalientPoint> salient_points;
+	std::for_each(keypoints.begin(), keypoints.end(),
+		[&](cv::KeyPoint& k) { salient_points.emplace_back(k, 0, 0, 0); });
+
+	// Calculate the standard deviation of the keypoints, and erase those
+	// that are lower than the standard deviation.
+	ROS_INFO("Total salient points: %lu", salient_points.size());
+	double sd = calculateSaliencySD(salient_points);
+	salient_points.erase(std::remove_if(salient_points.begin(), salient_points.end(),
+		[&](SalientPoint& p) { return p.getSaliencyScore() < sd; }),
+		salient_points.end());
+	ROS_INFO("Thresholded salient points: %lu", salient_points.size());
+
+	// Draw the surviving key points on the original image
+	for (const auto& point : salient_points)
+		cv::drawKeypoints(image, { point.getKeyPoint() }, image);
+
+	// Display the image with key points
+	cv::imshow("view", image);
+	cv::waitKey(30);
 }
 
 void cloudMapCallback(const sensor_msgs::PointCloud2Ptr& cloud_msg)
@@ -91,11 +140,11 @@ int main(int argc, char **argv)
 	ros::Subscriber img_sub;
 	img_sub = node_handle.subscribe("/kinect2/qhd/image_color_rect", 1, imageCallback);
 
-	ros::Subscriber pcl2_sub;
-	pcl2_sub = node_handle.subscribe("/rtabmap/cloud_map", 1, cloudMapCallback);
+	//ros::Subscriber pcl2_sub;
+	//pcl2_sub = node_handle.subscribe("/rtabmap/cloud_map", 1, cloudMapCallback);
 
-	ros::Subscriber odom_sub;
-	odom_sub = node_handle.subscribe("/rtabmap/odom", 1, positionCallback);
+	//ros::Subscriber odom_sub;
+	//odom_sub = node_handle.subscribe("/rtabmap/odom", 1, positionCallback);
 
 	ros::spin();
 
