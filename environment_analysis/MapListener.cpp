@@ -24,6 +24,15 @@
 
 #include "SalientPoint.hpp"
 
+// kdl_parser
+#include <kdl_parser/kdl_parser.hpp>
+
+// Orocos KDL
+#include <kdl/jntarray.hpp>
+#include <kdl/chainfksolverpos_recursive.hpp>
+#include <kdl/chainiksolvervel_pinv.hpp>
+#include <kdl/chainiksolverpos_nr.hpp>
+
 /*
 ROADMAP:
 
@@ -33,6 +42,12 @@ ROADMAP:
 [x] Get the SIFT features from the live RGB image.
 [ ] Calculate the saliency score for each keypoint.
 	- TODO: Should use three standard deviations.
+	- TODO: x_offset, y_offset in saliency score should be from image center
+[ ] Create a working memory pool for salient points.
+	- How do I prevent salient points being re-added for the current gaze point,
+	  and those same points once the gaze has been shifted?
+	  - Lowe's matching algorithm (SIFT), most likely can be achieved
+	    with ORB as well.
 */
 
 double calculateSaliencyMean(const std::vector<SalientPoint>& points)
@@ -131,8 +146,82 @@ void positionCallback(const nav_msgs::Odometry::ConstPtr& odom_msg)
 		pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w);
 }
 
+bool calculateJointAngles(double x, double y, double z, std::vector<double> &angles)
+{
+	// Load the KDL tree from the Braccio URDF file
+	KDL::Tree tree;
+	if (!kdl_parser::treeFromFile("/home/kavan/catkin_ws/src/BraccioVisualAttention/environment_analysis/braccio.urdf", tree))
+	{
+		ROS_ERROR("Failed to construct KDL tree");
+		return false;
+	}
+
+	// Print some stats about the KDL tree
+	ROS_INFO("KDL::Tree joint count: %u", tree.getNrOfJoints());
+	for (const auto& segment : tree.getSegments())
+	{
+		ROS_INFO("KDL::Segment name: %s", segment.first.c_str());
+	}
+
+	// Get the chain from the tree
+	KDL::Chain chain;
+	if (!tree.getChain("base_link", "braccio_ee", chain))
+	{
+		ROS_ERROR("Failed to create KDL chain");
+		return false;
+	}
+
+	// Creation of the solvers
+	KDL::ChainFkSolverPos_recursive fksolver(chain); // Forward position solver
+	KDL::ChainIkSolverVel_pinv iksolverv(chain); // Inverse velocity solver
+	const unsigned int max_iterations = 100;
+	const double accuracy = 1e-6;
+	KDL::ChainIkSolverPos_NR iksolver(chain, fksolver, iksolverv, 100, accuracy);
+
+	// Creation of joint arrays
+	KDL::JntArray q(chain.getNrOfJoints());
+	KDL::JntArray q_init(chain.getNrOfJoints());
+
+	// Set destination frame
+	KDL::Frame f_dest(KDL::Vector(x, y, z));
+
+	// Convert from cartesian position to joint angles
+	int result = iksolver.CartToJnt(q_init, f_dest, q);
+	ROS_INFO("JntArray rows: %u", q.rows());
+	ROS_INFO("JntArray cols: %u", q.columns());
+	ROS_INFO("Angles: %f, %f, %f, %f, %f", q.data[0], q.data[1], q.data[2], q.data[3], q.data[4]);
+	for (unsigned int i = 0; i < q.rows(); i++)
+		angles.push_back(q.data[i]);
+
+	if (result == iksolver.E_NOERROR)
+	{
+		ROS_INFO("Joint positions calculated successfully!");
+		return true;
+	}
+	else if (result == iksolver.E_DEGRADED)
+	{
+		ROS_INFO("Joint positions calculated - solution quality degraded");
+		return true;
+	}
+	else if (result == iksolver.E_IKSOLVER_FAILED)
+	{
+		ROS_ERROR("Velocity solver failed");
+		return false;
+	}
+	else if (result == iksolver.E_NO_CONVERGE)
+	{
+		ROS_ERROR("Solution did not converge");
+		return false;
+	}
+
+	return false;
+}
+
 int main(int argc, char **argv)
 {
+	std::vector<double> angles;
+	calculateJointAngles(5.0, 5.0, 5.0, angles);
+
 	ros::init(argc, argv, "rtabmap_ros_listener");
 	ros::NodeHandle node_handle;
 	ros::Rate loop_rate(10);
