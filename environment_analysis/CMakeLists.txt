@@ -15,5 +15,5 @@ catkin_package()
 ## Build
 include_directories(include ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
 
-add_executable(rtabmap_ros_listener MapListener.cpp SalientPoint.cpp)
+add_executable(rtabmap_ros_listener MapListener.cpp SalientPoint.cpp kinematics/MatrixMath.cpp kinematics/BraccioKinematics.cpp)
 target_link_libraries(rtabmap_ros_listener ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
