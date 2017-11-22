@@ -1,9 +1,11 @@
 // Infra
 #include <vector>
 #include <string>
+#include <memory>
 
 // ROS
 #include "ros/ros.h"
+#include "std_msgs/Int32MultiArray.h"
 
 // Image
 #include "sensor_msgs/Image.h"
@@ -42,6 +44,8 @@ ROADMAP:
 	  - Lowe's matching algorithm (SIFT), most likely can be achieved
 	    with ORB as well.
 */
+
+ros::Publisher gaze_point_publisher;
 
 double calculateSaliencyMean(const std::vector<SalientPoint>& points)
 {
@@ -139,18 +143,31 @@ void positionCallback(const nav_msgs::Odometry::ConstPtr& odom_msg)
 		pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w);
 }
 
-void sendJointAngles(const std::vector<double> &angles)
+void sendJointAngles(const std_msgs::Int32MultiArray &angles)
 {
-	std::string command = "python /home/kavan/catkin_ws/src/BraccioVisualAttention/environment_analysis/gaze_control/braccio_gaze_controller.py ";
-	for (const auto& angle : angles)
-	{
-		command += (std::to_string(angle) + " ");
-	}
-	system(command.c_str());
+	gaze_point_publisher.publish(angles);
 }
 
 int main(int argc, char **argv)
 {
+	ros::init(argc, argv, "rtabmap_ros_listener");
+	ros::NodeHandle node_handle;
+	ros::Rate loop_rate(10);
+
+	ros::Subscriber img_sub;
+	img_sub = node_handle.subscribe("/kinect2/qhd/image_color_rect", 1, imageCallback);
+
+	//ros::Subscriber pcl2_sub;
+	//pcl2_sub = node_handle.subscribe("/rtabmap/cloud_map", 1, cloudMapCallback);
+
+	//ros::Subscriber odom_sub;
+	//odom_sub = node_handle.subscribe("/rtabmap/odom", 1, positionCallback);
+
+	gaze_point_publisher = node_handle.advertise<std_msgs::Int32MultiArray>("braccio_gaze_focus_setter", 1000);
+
+	// Wait for the braccio_gaze_controller.py subscriber to start accepting angles
+	while (gaze_point_publisher.getNumSubscribers() == 0) {}
+
 	BraccioKinematics kinematics;
 	srand(time(NULL));
 	float x = rand() / (float)RAND_MAX * 50.0;
@@ -164,25 +181,18 @@ int main(int argc, char **argv)
 	if (success)
 	{
 		ROS_INFO("base = %f, shoulder = %f, elbow = %f, wrist = %f", angles.base, angles.shoulder, angles.elbow, angles.wrist);
-		sendJointAngles({angles.base, angles.shoulder, angles.elbow, angles.wrist, angles.wrist_rot});
+		std_msgs::Int32MultiArray angles_array;
+		angles_array.data.push_back(angles.base);
+		angles_array.data.push_back(angles.shoulder);
+		angles_array.data.push_back(angles.elbow);
+		angles_array.data.push_back(angles.wrist);
+		angles_array.data.push_back(angles.wrist_rot);
+		sendJointAngles(angles_array);
 	}
 	else
 	{
 		ROS_ERROR("Could not solve for (%.2f,%.2f,%.2f)", x, y, z);
 	}
-
-	ros::init(argc, argv, "rtabmap_ros_listener");
-	ros::NodeHandle node_handle;
-	ros::Rate loop_rate(10);
-
-	ros::Subscriber img_sub;
-	img_sub = node_handle.subscribe("/kinect2/qhd/image_color_rect", 1, imageCallback);
-
-	//ros::Subscriber pcl2_sub;
-	//pcl2_sub = node_handle.subscribe("/rtabmap/cloud_map", 1, cloudMapCallback);
-
-	//ros::Subscriber odom_sub;
-	//odom_sub = node_handle.subscribe("/rtabmap/odom", 1, positionCallback);
 
 	ros::spin();
 

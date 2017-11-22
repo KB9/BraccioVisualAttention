@@ -1,25 +1,32 @@
+#!/usr/bin/env python
+
 import sys
 import requests
 import json
+import rospy
+from std_msgs.msg import Int32MultiArray, Bool
 
 payload = {}
 headers = {'content-type': 'application/json'}
+ip = 'http://192.168.0.71:4000/jsonrpc'
+publisher = None
 
-def main(angles, ip):
+def onAnglesReceived(angles):
 	global payload
+	print "received angles"
 
 	intValues = []
 
 	# Ensure that all 3 axis of the point are provided, else keep Braccio steady
-	if len(angles) == 5:
+	if len(angles.data) == 5:
 		try:
-			for value in angles:
+			for value in angles.data:
 				intValues.append(int(float(value)))
 		except ValueError as e:
 			print "Integer values expected for the gaze point angles"
 			print e
 	else:
-		print "Expecting 5 values for the gaze point angles (base, shoulder, elbow, wrist, wrist rotation), " + str(len(angles)) + " received. Command ignored."
+		print "Expecting 5 values for the gaze point angles (base, shoulder, elbow, wrist, wrist rotation), " + str(len(angles.data)) + " received. Command ignored."
 
 	if len(intValues) > 0:
 		payload = {
@@ -32,9 +39,20 @@ def main(angles, ip):
 	try:
 		response = requests.post(ip, data=json.dumps(payload), headers=headers).json()
 		print "Arduino Yun (" + ip + ") response:", response
+		onGazeFocused()
 	except requests.ConnectionError:
 		print "Connection error. Is braccio_gaze_server.py running?"
 
+def onGazeFocused():
+	publisher.publish(True)
+
+def main():
+	global publisher
+	
+	rospy.init_node("braccio_gaze_controller", anonymous=False)
+	publisher = rospy.Publisher("braccio_gaze_focus_callback", Bool, queue_size=10)
+	subscriber = rospy.Subscriber("/braccio_gaze_focus_setter", Int32MultiArray, onAnglesReceived)
+	rospy.spin()
 
 if __name__ == "__main__":
-	main(sys.argv[1:], 'http://192.168.0.71:4000/jsonrpc')
+	main()
