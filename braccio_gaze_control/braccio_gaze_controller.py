@@ -13,7 +13,6 @@ publisher = None
 
 def onAnglesReceived(angles):
 	global payload
-	print "received angles"
 
 	intValues = []
 
@@ -48,7 +47,7 @@ def onGazeFocused():
 
 def main():
 	global publisher
-	
+
 	rospy.init_node("braccio_gaze_controller", anonymous=False)
 	publisher = rospy.Publisher("braccio_gaze_focus_callback", Bool, queue_size=10)
 	subscriber = rospy.Subscriber("/braccio_gaze_focus_setter", Int32MultiArray, onAnglesReceived)

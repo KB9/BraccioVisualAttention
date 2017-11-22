@@ -6,6 +6,7 @@
 // ROS
 #include "ros/ros.h"
 #include "std_msgs/Int32MultiArray.h"
+#include "std_msgs/Bool.h"
 
 // Image
 #include "sensor_msgs/Image.h"
@@ -148,26 +149,8 @@ void sendJointAngles(const std_msgs::Int32MultiArray &angles)
 	gaze_point_publisher.publish(angles);
 }
 
-int main(int argc, char **argv)
+void onGazeFocused(std_msgs::Bool value)
 {
-	ros::init(argc, argv, "rtabmap_ros_listener");
-	ros::NodeHandle node_handle;
-	ros::Rate loop_rate(10);
-
-	ros::Subscriber img_sub;
-	img_sub = node_handle.subscribe("/kinect2/qhd/image_color_rect", 1, imageCallback);
-
-	//ros::Subscriber pcl2_sub;
-	//pcl2_sub = node_handle.subscribe("/rtabmap/cloud_map", 1, cloudMapCallback);
-
-	//ros::Subscriber odom_sub;
-	//odom_sub = node_handle.subscribe("/rtabmap/odom", 1, positionCallback);
-
-	gaze_point_publisher = node_handle.advertise<std_msgs::Int32MultiArray>("braccio_gaze_focus_setter", 1000);
-
-	// Wait for the braccio_gaze_controller.py subscriber to start accepting angles
-	while (gaze_point_publisher.getNumSubscribers() == 0) {}
-
 	BraccioKinematics kinematics;
 	srand(time(NULL));
 	float x = rand() / (float)RAND_MAX * 50.0;
@@ -192,7 +175,33 @@ int main(int argc, char **argv)
 	else
 	{
 		ROS_ERROR("Could not solve for (%.2f,%.2f,%.2f)", x, y, z);
+		onGazeFocused(std_msgs::Bool{});
 	}
+}
+
+int main(int argc, char **argv)
+{
+	ros::init(argc, argv, "rtabmap_ros_listener");
+	ros::NodeHandle node_handle;
+	ros::Rate loop_rate(10);
+
+	ros::Subscriber img_sub;
+	img_sub = node_handle.subscribe("/kinect2/qhd/image_color_rect", 1, imageCallback);
+
+	//ros::Subscriber pcl2_sub;
+	//pcl2_sub = node_handle.subscribe("/rtabmap/cloud_map", 1, cloudMapCallback);
+
+	//ros::Subscriber odom_sub;
+	//odom_sub = node_handle.subscribe("/rtabmap/odom", 1, positionCallback);
+
+	gaze_point_publisher = node_handle.advertise<std_msgs::Int32MultiArray>("braccio_gaze_focus_setter", 1000);
+	ros::Subscriber gaze_point_focus_subscriber;
+	gaze_point_focus_subscriber = node_handle.subscribe("/braccio_gaze_focus_callback", 1, onGazeFocused);
+
+	// Wait for the braccio_gaze_controller.py subscriber to start accepting angles
+	while (gaze_point_publisher.getNumSubscribers() == 0) {}
+
+	onGazeFocused(std_msgs::Bool{});
 
 	ros::spin();
 
