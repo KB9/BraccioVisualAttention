@@ -4,10 +4,9 @@ project(environment_analysis)
 set(CMAKE_CXX_STANDARD 14)
 
 ## Find catkin and any catkin packages
-find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs cv_bridge kdl_parser)
+find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs cv_bridge)
 
 find_package(OpenCV)
-find_package(orocos_kdl)
 
 ## Declare a catkin package
 catkin_package()

@@ -49,15 +49,6 @@
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>kinect2_bridge</build_depend>
-  <build_export_depend>kinect2_bridge</build_export_depend>
-  <exec_depend>kinect2_bridge</exec_depend>
-
-  <build_depend>kdl_parser</build_depend>
-  <exec_depend>kdl_parser</exec_depend>
-  <build_depend>orocos_kdl</build_depend>
-  <exec_depend>orocos_kdl</exec_depend>
-
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

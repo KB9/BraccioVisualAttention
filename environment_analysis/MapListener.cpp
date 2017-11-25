@@ -185,21 +185,24 @@ int main(int argc, char **argv)
 	ros::NodeHandle node_handle;
 	ros::Rate loop_rate(10);
 
-	ros::Subscriber img_sub;
-	img_sub = node_handle.subscribe("/kinect2/qhd/image_color_rect", 1, imageCallback);
+	// REMINDER: Execute "roslaunch zed_wrapper zed.launch" to start receiving input
 
-	//ros::Subscriber pcl2_sub;
-	//pcl2_sub = node_handle.subscribe("/rtabmap/cloud_map", 1, cloudMapCallback);
+	ros::Subscriber img_sub;
+	img_sub = node_handle.subscribe("/zed/rgb/image_rect_color", 1, imageCallback);
+
+	// ros::Subscriber pcl2_sub;
+	// pcl2_sub = node_handle.subscribe("/zed/point_cloud/cloud_registered", 1, cloudMapCallback);
 
 	//ros::Subscriber odom_sub;
-	//odom_sub = node_handle.subscribe("/rtabmap/odom", 1, positionCallback);
+	//odom_sub = node_handle.subscribe("/zed/odom", 1, positionCallback);
 
 	gaze_point_publisher = node_handle.advertise<std_msgs::Int32MultiArray>("braccio_gaze_focus_setter", 1000);
 	ros::Subscriber gaze_point_focus_subscriber;
 	gaze_point_focus_subscriber = node_handle.subscribe("/braccio_gaze_focus_callback", 1, onGazeFocused);
 
 	// Wait for the braccio_gaze_controller.py subscriber to start accepting angles
-	while (gaze_point_publisher.getNumSubscribers() == 0) {}
+	ROS_INFO("Subscribe to /braccio_gaze_focus_setter to continue...");
+	// while (gaze_point_publisher.getNumSubscribers() == 0) {}
 
 	onGazeFocused(std_msgs::Bool{});
 
