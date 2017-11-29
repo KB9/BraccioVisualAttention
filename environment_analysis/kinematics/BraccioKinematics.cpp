@@ -221,6 +221,7 @@ Pos3d BraccioKinematics::toBaseRelativeAxis(float x, float y, float z)
 	float base_rel_x = x * cosf(a) + z * -sinf(a);
 	float base_rel_y = y;
 	float base_rel_z = x * sinf(a) + z * cosf(a);
+
 	return {base_rel_x, base_rel_y, base_rel_z};
 }
 

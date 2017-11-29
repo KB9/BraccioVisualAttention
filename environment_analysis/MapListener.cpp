@@ -27,7 +27,7 @@
 #include "opencv2/xfeatures2d.hpp"
 
 #include "SalientPoint.hpp"
-#include "kinematics/BraccioKinematics.hpp"
+#include "Braccio.hpp"
 
 /*
 ROADMAP:
@@ -45,8 +45,6 @@ ROADMAP:
 	  - Lowe's matching algorithm (SIFT), most likely can be achieved
 	    with ORB as well.
 */
-
-ros::Publisher gaze_point_publisher;
 
 double calculateSaliencyMean(const std::vector<SalientPoint>& points)
 {
@@ -144,45 +142,9 @@ void positionCallback(const nav_msgs::Odometry::ConstPtr& odom_msg)
 		pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w);
 }
 
-void sendJointAngles(const std_msgs::Int32MultiArray &angles)
+void testCallback(std_msgs::Bool value)
 {
-	gaze_point_publisher.publish(angles);
-}
-
-void onGazeFocused(std_msgs::Bool value)
-{
-	BraccioKinematics kinematics;
-	srand(time(NULL));
-	float x = rand() / (float)RAND_MAX * 50.0;
-	float y = rand() / (float)RAND_MAX * 50.0;
-	float z = rand() / (float)RAND_MAX * 50.0;
-
-	ROS_INFO("x = %f, y = %f, z = %f", x,y,z);
-
-	BraccioJointAngles angles;
-	bool success = kinematics.lookAt(x, y, z, angles);
-	if (success)
-	{
-		// TESTING
-		Pos3d effector_pos = kinematics.getEffectorPos3d();
-		ROS_INFO("[EFFECTOR] x = %f, y = %f, z = %f", effector_pos.x, effector_pos.y, effector_pos.z);
-		Pos3d base_rel_pos = kinematics.toBaseRelative(x, y, z);
-		ROS_INFO("[BASE_RELATIVE] x = %f, y = %f, z = %f", base_rel_pos.x, base_rel_pos.y, base_rel_pos.z);
-
-		ROS_INFO("base = %f, shoulder = %f, elbow = %f, wrist = %f", angles.base, angles.shoulder, angles.elbow, angles.wrist);
-		std_msgs::Int32MultiArray angles_array;
-		angles_array.data.push_back(angles.base);
-		angles_array.data.push_back(angles.shoulder);
-		angles_array.data.push_back(angles.elbow);
-		angles_array.data.push_back(angles.wrist);
-		angles_array.data.push_back(angles.wrist_rot);
-		sendJointAngles(angles_array);
-	}
-	else
-	{
-		ROS_ERROR("Could not solve for (%.2f,%.2f,%.2f)", x, y, z);
-		onGazeFocused(std_msgs::Bool{});
-	}
+	ROS_INFO("YOU HAVE 1 NEW CALLBACK!");
 }
 
 int main(int argc, char **argv)
@@ -202,15 +164,8 @@ int main(int argc, char **argv)
 	//ros::Subscriber odom_sub;
 	//odom_sub = node_handle.subscribe("/zed/odom", 1, positionCallback);
 
-	gaze_point_publisher = node_handle.advertise<std_msgs::Int32MultiArray>("braccio_gaze_focus_setter", 1000);
-	ros::Subscriber gaze_point_focus_subscriber;
-	gaze_point_focus_subscriber = node_handle.subscribe("/braccio_gaze_focus_callback", 1, onGazeFocused);
-
-	// Wait for the braccio_gaze_controller.py subscriber to start accepting angles
-	ROS_INFO("Subscribe to /braccio_gaze_focus_setter to continue...");
-	while (gaze_point_publisher.getNumSubscribers() == 0) {}
-
-	onGazeFocused(std_msgs::Bool{});
+	Braccio braccio;
+	braccio.initGazeFeedback(node_handle, testCallback);
 
 	ros::spin();
 
