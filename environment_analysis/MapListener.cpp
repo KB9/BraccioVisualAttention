@@ -163,6 +163,12 @@ void onGazeFocused(std_msgs::Bool value)
 	bool success = kinematics.lookAt(x, y, z, angles);
 	if (success)
 	{
+		// TESTING
+		Pos3d effector_pos = kinematics.getEffectorPos3d();
+		ROS_INFO("[EFFECTOR] x = %f, y = %f, z = %f", effector_pos.x, effector_pos.y, effector_pos.z);
+		Pos3d base_rel_pos = kinematics.toBaseRelative(x, y, z);
+		ROS_INFO("[BASE_RELATIVE] x = %f, y = %f, z = %f", base_rel_pos.x, base_rel_pos.y, base_rel_pos.z);
+
 		ROS_INFO("base = %f, shoulder = %f, elbow = %f, wrist = %f", angles.base, angles.shoulder, angles.elbow, angles.wrist);
 		std_msgs::Int32MultiArray angles_array;
 		angles_array.data.push_back(angles.base);
@@ -187,8 +193,8 @@ int main(int argc, char **argv)
 
 	// REMINDER: Execute "roslaunch zed_wrapper zed.launch" to start receiving input
 
-	ros::Subscriber img_sub;
-	img_sub = node_handle.subscribe("/zed/rgb/image_rect_color", 1, imageCallback);
+	//ros::Subscriber img_sub;
+	//img_sub = node_handle.subscribe("/zed/rgb/image_rect_color", 1, imageCallback);
 
 	// ros::Subscriber pcl2_sub;
 	// pcl2_sub = node_handle.subscribe("/zed/point_cloud/cloud_registered", 1, cloudMapCallback);
@@ -202,7 +208,7 @@ int main(int argc, char **argv)
 
 	// Wait for the braccio_gaze_controller.py subscriber to start accepting angles
 	ROS_INFO("Subscribe to /braccio_gaze_focus_setter to continue...");
-	// while (gaze_point_publisher.getNumSubscribers() == 0) {}
+	while (gaze_point_publisher.getNumSubscribers() == 0) {}
 
 	onGazeFocused(std_msgs::Bool{});
 

@@ -3,43 +3,6 @@
 #include <random>
 #include "MatrixMath.h"
 
-struct Lengths
-{
-	float l1, l2, l3;
-};
-
-struct Pos2d
-{
-	float x;
-	float y;
-};
-
-struct Pos3d
-{
-	float x, y, z;
-};
-
-struct JointAngles
-{
-	float q1, q2, q3;
-};
-
-struct Angles
-{
-	float base;
-	float q1, q2, q3;
-};
-
-struct AngleDeltas
-{
-	float q1, q2, q3;
-};
-
-struct PosDeltas
-{
-	float dx, dy;
-};
-
 JointAngles &operator +=(JointAngles &angles, AngleDeltas deltas)
 {
 	angles.q1 += deltas.q1;
@@ -229,7 +192,46 @@ bool BraccioKinematics::lookAt(float x, float y, float z, BraccioJointAngles &br
 		braccio_angles.elbow = toDegrees(angles.q2) + 90.0f;
 		braccio_angles.wrist = toDegrees(angles.q3) + 90.0f;
 		braccio_angles.wrist_rot = 90.0f;
+
+		current_angles = braccio_angles;
 	}
 
 	return success;
+}
+
+Pos3d BraccioKinematics::getEffectorPos3d()
+{
+	JointAngles angles;
+	angles.q1 = toRadians(current_angles.shoulder);
+	angles.q2 = toRadians(current_angles.elbow - 90.0f);
+	angles.q3 = toRadians(current_angles.wrist - 90.0f);
+
+	Lengths lengths;
+	lengths.l1 = SHOULDER_LENGTH;
+	lengths.l2 = ELBOW_LENGTH;
+	lengths.l3 = WRIST_LENGTH;
+
+	Pos2d fk_pos = ::fk_pos(lengths, angles);
+	return {fk_pos.x * cosf(toRadians(current_angles.base)), fk_pos.x * sinf(toRadians(current_angles.base)), fk_pos.y};
+}
+
+Pos3d BraccioKinematics::toBaseRelativeAxis(float x, float y, float z)
+{
+	float a = toRadians(current_angles.base);
+	float base_rel_x = x * cosf(a) + z * -sinf(a);
+	float base_rel_y = y;
+	float base_rel_z = x * sinf(a) + z * cosf(a);
+	return {base_rel_x, base_rel_y, base_rel_z};
+}
+
+Pos3d BraccioKinematics::toBaseRelative(float x, float y, float z)
+{
+	// Get the position of the effector relative to the arm's base
+	Pos3d effector_pos = getEffectorPos3d();
+
+	// Rotate the camera's axes to that of the base
+	Pos3d base_rel_pos = toBaseRelativeAxis(x, y, z);
+
+	// Translate the base relative positions to the base origin
+	return {base_rel_pos.x + effector_pos.x, base_rel_pos.y + effector_pos.y, base_rel_pos.z + effector_pos.z};
 }
