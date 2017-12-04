@@ -56,15 +56,27 @@ struct PosDeltas
 	float dx, dy;
 };
 
+struct Constraint
+{
+	float min;
+	float max;
+};
+
+struct JointConstraints
+{
+	Constraint c1, c2, c3;
+};
+
 class BraccioKinematics
 {
 public:
 	bool lookAt(float x, float y, float z, BraccioJointAngles &braccio_angles);
 	Pos3d getEffectorPos3d();
-	Pos3d toBaseRelativeAxis(float x, float y, float z);
 	Pos3d toBaseRelative(float x, float y, float z);
+	Pos3d applyAxisRotation(float rad_z, float rad_y, float x, float y, float z);
 
-	// NOTE: These are probably named wrong, and I can't find any segment on the arm which is 19cm long
+	void setJointAngles(const BraccioJointAngles &angles);
+
 	static constexpr float SHOULDER_LENGTH = 12.0f;
 	static constexpr float ELBOW_LENGTH = 12.0f;
 	static constexpr float WRIST_LENGTH = 9.0f;
@@ -79,5 +91,5 @@ public:
 	static constexpr float BASE_CONSTRAINT_MAX = toRadians(180.0f); // 0.0f
 
 private:
-	BraccioJointAngles current_angles;
+	Angles current_angles; // in radians
 };

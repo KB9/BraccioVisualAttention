@@ -1,7 +1,17 @@
 #include "BraccioKinematics.hpp"
 #include <cmath>
 #include <random>
+
+#define USE_EIGEN
+
+//#ifdef USE_EIGEN
+#include <Eigen/Core>
+#include <Eigen/Dense>
+//#else
 #include "MatrixMath.h"
+//#endif
+
+#include "ros/ros.h"
 
 JointAngles &operator +=(JointAngles &angles, AngleDeltas deltas)
 {
@@ -42,6 +52,39 @@ Pos2d fk_pos(Lengths lengths, JointAngles angles)
 
 AngleDeltas calculate(Lengths lengths, JointAngles angles, float *distance)
 {
+// #ifdef USE_EIGEN
+
+// 	float q1 = angles.q1;
+// 	float q2 = angles.q2;
+// 	float q3 = angles.q3;
+
+// 	float l1 = lengths.l1;
+// 	float l2 = lengths.l2;
+// 	float l3 = lengths.l3; 
+
+// 	Eigen::Matrix<double, 2, 3> jacobian;
+// 	jacobian(0, 0) = -l1 * sin(q1) - l2 * sin(q1 + q2) - l3 * sin(q1 + q2 + q3);
+// 	jacobian(0, 1) = -l2 * sin(q1 + q2) - l3 * sin(q1 + q2 + q3);
+// 	jacobian(0, 2) = -l3 * sin(q1 + q2 + q3);
+// 	jacobian(1, 0) = l1 * cos(q1) + l2 * cos(q1 + q2) + l3 * cos(q1 + q2 + q3);
+// 	jacobian(1, 1) = l1 * cos(q1 + q2) + l3 * cosf(q1 + q2 + q3);
+// 	jacobian(1, 2) = l3 * cos(q1 + q2 + q3);
+// 	Eigen::Matrix<double, 3, 2> jacobian_transpose = jacobian.transpose().eval();
+
+// 	Eigen::Matrix<double, 3, 3> intermediate = (jacobian_transpose * jacobian).inverse();
+
+// 	// Moore-Penrose pseduo inverse
+// 	Eigen::Matrix<double, 3, 2> pseudoinverse = intermediate * jacobian_transpose;
+
+// 	Eigen::Matrix<double, 2, 1> distance_mat;
+// 	distance_mat(0, 0) = distance[0];
+// 	distance_mat(1, 0) = distance[1];
+
+// 	Eigen::Matrix<double, 3, 1> delta_angles = pseudoinverse * distance_mat;
+// 	return {delta_angles(0, 0), delta_angles(1, 0), delta_angles(2, 0)};
+
+// #else
+
 	float q1 = angles.q1;
 	float q2 = angles.q2;
 	float q3 = angles.q3;
@@ -65,8 +108,9 @@ AngleDeltas calculate(Lengths lengths, JointAngles angles, float *distance)
 	float delta_angles[3 * 1];
 	Matrix.Multiply(jacobian_pseudoinverse, distance, 3, 2, 1, delta_angles);
 	return AngleDeltas {delta_angles[0], delta_angles[1], delta_angles[2]};
-}
 
+// #endif
+}
 
 PosDeltas distance_delta(Lengths lengths, JointAngles angles, Pos2d tgt)
 {
@@ -77,18 +121,6 @@ PosDeltas distance_delta(Lengths lengths, JointAngles angles, Pos2d tgt)
 
 	return {dx,dy};
 }
-
-struct Constraint
-{
-	float min;
-	float max;
-};
-
-
-struct JointConstraints
-{
-	Constraint c1, c2, c3;
-};
 
 bool satisfies(Constraint c, float angle)
 {
@@ -142,7 +174,9 @@ std::pair<JointAngles, bool> solve2d_constrained(Pos2d tgt, Lengths lengths, Joi
 		if (!res.second) continue;
 		result = res.first;
 
-	} while(!satisfies(constraints, result) && limit-- > 0);	
+	} while(!satisfies(constraints, result) && limit-- > 0);
+
+	if (limit <= 0) ROS_INFO("Limit for 2d constrained reached");	
 
 	return {result, limit > 0};
 }
@@ -193,7 +227,7 @@ bool BraccioKinematics::lookAt(float x, float y, float z, BraccioJointAngles &br
 		braccio_angles.wrist = toDegrees(angles.q3) + 90.0f;
 		braccio_angles.wrist_rot = 90.0f;
 
-		current_angles = braccio_angles;
+		current_angles = angles;
 	}
 
 	return success;
@@ -202,9 +236,9 @@ bool BraccioKinematics::lookAt(float x, float y, float z, BraccioJointAngles &br
 Pos3d BraccioKinematics::getEffectorPos3d()
 {
 	JointAngles angles;
-	angles.q1 = toRadians(current_angles.shoulder);
-	angles.q2 = toRadians(current_angles.elbow - 90.0f);
-	angles.q3 = toRadians(current_angles.wrist - 90.0f);
+	angles.q1 = current_angles.q1;
+	angles.q2 = current_angles.q2;
+	angles.q3 = current_angles.q3;
 
 	Lengths lengths;
 	lengths.l1 = SHOULDER_LENGTH;
@@ -212,17 +246,7 @@ Pos3d BraccioKinematics::getEffectorPos3d()
 	lengths.l3 = WRIST_LENGTH;
 
 	Pos2d fk_pos = ::fk_pos(lengths, angles);
-	return {fk_pos.x * cosf(toRadians(current_angles.base)), fk_pos.x * sinf(toRadians(current_angles.base)), fk_pos.y};
-}
-
-Pos3d BraccioKinematics::toBaseRelativeAxis(float x, float y, float z)
-{
-	float a = toRadians(current_angles.base);
-	float base_rel_x = x * cosf(a) + z * -sinf(a);
-	float base_rel_y = y;
-	float base_rel_z = x * sinf(a) + z * cosf(a);
-
-	return {base_rel_x, base_rel_y, base_rel_z};
+	return {fk_pos.x * cosf(current_angles.base), fk_pos.x * sinf(current_angles.base), fk_pos.y};
 }
 
 Pos3d BraccioKinematics::toBaseRelative(float x, float y, float z)
@@ -231,8 +255,70 @@ Pos3d BraccioKinematics::toBaseRelative(float x, float y, float z)
 	Pos3d effector_pos = getEffectorPos3d();
 
 	// Rotate the camera's axes to that of the base
-	Pos3d base_rel_pos = toBaseRelativeAxis(x, y, z);
+	// NOTE:
+	// The order x,y,z is passed in will depend on which axis corresponds
+	// to which between the camera and the LHS coordinate system used by these
+	// algorithms.
+	Pos3d base_rel_pos = applyAxisRotation(current_angles.base,
+	                                       current_angles.q1 + current_angles.q2 + current_angles.q3,
+	                                       x, y, z);
 
 	// Translate the base relative positions to the base origin
 	return {base_rel_pos.x + effector_pos.x, base_rel_pos.y + effector_pos.y, base_rel_pos.z + effector_pos.z};
+}
+
+// As the coordinate systems between the Braccio base and effector camera will
+// be rotationally skewed, a rotation on both the z and y axis needs to be
+// performed so that the axes of both coordinate systems align.
+//
+// NOTE:
+// As the origin of the point cloud is the camera's starting position, this function
+// should be called only once as soon as the point cloud recording starts.
+Pos3d BraccioKinematics::applyAxisRotation(float rad_z, float rad_y, float x, float y, float z)
+{
+#ifdef USE_EIGEN
+
+	Eigen::MatrixXf rot_y(3, 3);
+	rot_y(0, 0) = cosf(rad_y);
+	rot_y(0, 1) = 0;
+	rot_y(0, 2) = -sinf(rad_y);
+	rot_y(1, 0) = 0;
+	rot_y(1, 1) = 1;
+	rot_y(1, 2) = 0;
+	rot_y(2, 0) = sinf(rad_y);
+	rot_y(2, 1) = 0;
+	rot_y(2, 2) = cosf(rad_y);
+
+	Eigen::MatrixXf rot_z(3, 3);
+	rot_z(0, 0) = cosf(rad_z);
+	rot_z(0, 1) = sinf(rad_z);
+	rot_z(0, 2) = 0;
+	rot_z(1, 0) = -sinf(rad_z);
+	rot_z(1, 1) = cosf(rad_z);
+	rot_z(1, 2) = 0;
+	rot_z(2, 0) = 0;
+	rot_z(2, 1) = 0;
+	rot_z(2, 2) = 1;
+
+	Eigen::MatrixXf point(3, 1);
+	point(0, 0) = x;
+	point(0, 1) = y;
+	point(0, 2) = z;
+
+	auto result = (rot_y * rot_z) * point;
+	return {result(0, 0), result(0, 1), result(0, 2)};
+
+#else
+
+	return {0.0f, 0.0f, 0.0f};
+
+#endif
+}
+
+void BraccioKinematics::setJointAngles(const BraccioJointAngles &angles)
+{
+	current_angles.base = toRadians(angles.base);
+	current_angles.q1 = toRadians(angles.shoulder);
+	current_angles.q2 = toRadians(angles.elbow - 90.0f);
+	current_angles.q3 = toRadians(angles.wrist - 90.0f);
 }
