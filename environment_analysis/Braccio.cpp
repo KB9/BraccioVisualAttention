@@ -17,14 +17,14 @@ void Braccio::initGazeFeedback(ros::NodeHandle &nh,
 {
 	if (!is_gaze_feedback_started)
 	{
-		gaze_point_publisher = nh.advertise<std_msgs::Int32MultiArray>("braccio_gaze_focus_setter", 1000);
+		gaze_point_publisher = nh.advertise<std_msgs::Int32MultiArray>("braccio_gaze_focus_setter", 1);
 		gaze_point_subscriber = nh.subscribe("/braccio_gaze_focus_callback", 1, subscriberCallback);
 		ROS_INFO("Waiting for connection to gaze server...");
 		while (gaze_point_publisher.getNumSubscribers() == 0) {}
 		ROS_INFO("Connection to gaze server established!");
 		is_gaze_feedback_started = true;
 
-		sendJointAngles();
+		// sendJointAngles();
 	}
 }
 
@@ -41,6 +41,7 @@ bool Braccio::lookAt(float x, float y, float z)
 void Braccio::setJointAngles(const BraccioJointAngles &angles)
 {
 	joint_angles = angles;
+	kinematics.setJointAngles(angles);
 	sendJointAngles();
 }
 
