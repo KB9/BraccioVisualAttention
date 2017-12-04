@@ -7,12 +7,13 @@ set(CMAKE_CXX_STANDARD 14)
 find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs cv_bridge)
 
 find_package(OpenCV)
+find_package(Eigen3 REQUIRED)
 
 ## Declare a catkin package
 catkin_package()
 
 ## Build
-include_directories(include ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
+include_directories(include ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
 
 add_executable(rtabmap_ros_listener MapListener.cpp SalientPoint.cpp Braccio.cpp kinematics/MatrixMath.cpp kinematics/BraccioKinematics.cpp)
 target_link_libraries(rtabmap_ros_listener ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
