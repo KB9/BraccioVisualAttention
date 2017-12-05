@@ -302,11 +302,11 @@ Pos3d BraccioKinematics::applyAxisRotation(float rad_z, float rad_y, float x, fl
 
 	Eigen::MatrixXf point(3, 1);
 	point(0, 0) = x;
-	point(0, 1) = y;
-	point(0, 2) = z;
+	point(1, 0) = y;
+	point(2, 0) = z;
 
 	auto result = (rot_y * rot_z) * point;
-	return {result(0, 0), result(0, 1), result(0, 2)};
+	return {result(0, 0), result(1, 0), result(2, 0)};
 
 #else
 
