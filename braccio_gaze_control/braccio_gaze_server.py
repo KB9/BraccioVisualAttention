@@ -20,6 +20,7 @@ def set_braccio_gaze(**kwargs):
 	gaze_point_angles.append([str(kwargs["M1"]), str(kwargs["M2"]), str(kwargs["M3"]), str(kwargs["M4"]), str(kwargs["M5"])])
 
 	executed = False
+	value.put('RESULT', "incomplete")
 
 	# Write the new gaze point to the CSV file
 	with open("/mnt/sda1/gaze_point_angles.csv", "wb") as csv_file:
