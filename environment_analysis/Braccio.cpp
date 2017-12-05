@@ -38,6 +38,15 @@ bool Braccio::lookAt(float x, float y, float z)
 		ROS_WARN("IK could not solve for (%f,%f,%f)", x, y, z);
 }
 
+bool Braccio::lookAt_BR(float x, float y, float z)
+{
+	ROS_INFO("Camera relative: (%.3f,%.3f,%.3f)", x, y, z);
+	Pos3d base_relative_pos = kinematics.toBaseRelative(x, y, z);
+	ROS_INFO("Base relative: (%.3f,%.3f,%.3f)", base_relative_pos.x, base_relative_pos.y, base_relative_pos.z);
+
+	// TODO: Make this move the the Braccio
+}
+
 void Braccio::setJointAngles(const BraccioJointAngles &angles)
 {
 	joint_angles = angles;

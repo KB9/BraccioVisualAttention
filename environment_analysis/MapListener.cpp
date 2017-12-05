@@ -14,6 +14,7 @@
 // PCL
 #include "sensor_msgs/PointCloud2.h"
 #include "sensor_msgs/point_cloud2_iterator.h"
+#include "pcl_ros/point_cloud.h"
 
 // Odometry
 #include "nav_msgs/Odometry.h"
@@ -46,6 +47,10 @@ ROADMAP:
 	    with ORB as well.
 */
 
+Braccio braccio;
+sensor_msgs::PointCloud2Ptr pcl_msg = nullptr;
+std::vector<SalientPoint> salient_points;
+
 double calculateSaliencyMean(const std::vector<SalientPoint>& points)
 {
 	double mean = 0;
@@ -66,6 +71,8 @@ double calculateSaliencySD(const std::vector<SalientPoint>& points)
 
 void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
 {
+	salient_points.clear();
+
 	// Convert from the ROS image message to an OpenCV image
 	cv::Mat image = cv_bridge::toCvCopy(img_msg)->image;
 
@@ -75,18 +82,21 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
 	detector->detect(image, keypoints);
 
 	// Create the vector containing the wrapped salient keypoints
-	std::vector<SalientPoint> salient_points;
-	std::for_each(keypoints.begin(), keypoints.end(),
-		[&](cv::KeyPoint& k) { salient_points.emplace_back(k, 0, 0, 0); });
+	// std::vector<SalientPoint> salient_points;
+	std::for_each(keypoints.begin(), keypoints.end(), [&](cv::KeyPoint& k)
+	{
+		salient_points.emplace_back(k, k.pt.x, k.pt.y, 0);
+	});
 
 	// Calculate the standard deviation of the keypoints, and erase those
 	// that are lower than the standard deviation.
-	ROS_INFO("Total salient points: %lu", salient_points.size());
 	double sd = calculateSaliencySD(salient_points);
 	salient_points.erase(std::remove_if(salient_points.begin(), salient_points.end(),
 		[&](SalientPoint& p) { return p.getSaliencyScore() < sd; }),
 		salient_points.end());
-	ROS_INFO("Thresholded salient points: %lu", salient_points.size());
+
+	// TESTING: REMOVE ALL SALIENT POINTS APART FROM ONE!
+	salient_points.erase(++salient_points.begin(), salient_points.end());
 
 	// Draw the surviving key points on the original image
 	for (const auto& point : salient_points)
@@ -99,29 +109,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
 
 void cloudMapCallback(const sensor_msgs::PointCloud2Ptr& cloud_msg)
 {
-	// Declare the iterators for the point cloud data
-	sensor_msgs::PointCloud2Iterator<float> iter_x(*cloud_msg, "x");
-	sensor_msgs::PointCloud2Iterator<float> iter_y(*cloud_msg, "y");
-	sensor_msgs::PointCloud2Iterator<float> iter_z(*cloud_msg, "z");
-	sensor_msgs::PointCloud2Iterator<uint8_t> iter_r(*cloud_msg, "r");
-	sensor_msgs::PointCloud2Iterator<uint8_t> iter_g(*cloud_msg, "g");
-	sensor_msgs::PointCloud2Iterator<uint8_t> iter_b(*cloud_msg, "b");
-
-	// NOTE: I'm going to assume all iterator lengths are the same
-	while (iter_x != iter_x.end())
-	{
-		ROS_INFO("POINTCLOUD2:");
-		ROS_INFO("pos: (%.3f,%.3f,%.3f) rgb: (%u,%u,%u)",
-			*iter_x, *iter_y, *iter_z, *iter_r, *iter_g, *iter_b);
-
-		// Increment iterators to access the next point
-		++iter_x;
-		++iter_y;
-		++iter_z;
-		++iter_r;
-		++iter_g;
-		++iter_b;
-	}
+	pcl_msg = cloud_msg;
 }
 
 void positionCallback(const nav_msgs::Odometry::ConstPtr& odom_msg)
@@ -142,10 +130,93 @@ void positionCallback(const nav_msgs::Odometry::ConstPtr& odom_msg)
 		pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w);
 }
 
-void testCallback(std_msgs::Bool value)
+pcl::PointXYZRGB getPCLPoint(pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud,
+                             float x, float y)
 {
-	ROS_INFO("YOU HAVE 1 NEW CALLBACK!");
+	if (pcl_cloud.isOrganized())
+	{
+		return pcl_cloud(x, y);
+	}
+	else
+	{
+		ROS_WARN("Point cloud is not organized - implementation not defined.");
+	}
 }
+
+Pos3d fromZedCameraAxis(Pos3d pos)
+{
+	return {pos.z, pos.x, -pos.y};
+}
+
+void onBraccioGazeFocusedCallback(std_msgs::Bool value)
+{
+	// Perform a deep copy to prevent this being modified whilst this callback
+	// is running (TODO: Check if this is required as callbacks may be executed
+	// concurrently).
+	auto salient_points_copy = salient_points;
+
+	ROS_INFO("Salient points: %lu", salient_points_copy.size());
+
+	// TODO: There should only be one salient point for now to test that this
+	// works. Later, it should be able to handle any number of points.
+	if (salient_points_copy.size() != 1)
+	{
+		ROS_WARN("For testing, focusing on anything other than one salient point has been disabled!");
+		return;
+	}
+	for (auto &point : salient_points_copy)
+	{
+		// Get the x,y coordinate to search for the point cloud
+		double x = point.getCameraX();
+		double y = point.getCameraY();
+		ROS_INFO("Salient point: (%.3f,%.3f)", x, y);
+
+		// Convert the point cloud ROS message to a PointCloud object
+		pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud;
+		pcl::fromROSMsg(*pcl_msg, pcl_cloud);
+
+		// Get the salient point in 3D from the point cloud
+		pcl::PointXYZRGB salient_pcl_point = getPCLPoint(pcl_cloud, x, y);
+		ROS_INFO("PointCloud salient point: (%.3f,%.3f,%.3f)", salient_pcl_point.x, salient_pcl_point.y, salient_pcl_point.z);
+
+		// NOTE: PCL points are in metres, convert them to centimetres for the kinematics
+
+		ROS_INFO("TESTING ORIGIN:");
+		auto pos = fromZedCameraAxis({0.0f, 0.0f, 0.0f});
+		braccio.lookAt_BR(pos.x, pos.y, pos.z);
+
+		ROS_INFO("TESTING Z:");
+		pos = fromZedCameraAxis({0.0f, 0.0f, 1.0f});
+		braccio.lookAt_BR(pos.x, pos.y, pos.z);
+		pos = fromZedCameraAxis({0.0f, 0.0f, 2.0f});
+		braccio.lookAt_BR(pos.x, pos.y, pos.z);
+		pos = fromZedCameraAxis({0.0f, 0.0f, 3.0f});
+		braccio.lookAt_BR(pos.x, pos.y, pos.z);
+
+		ROS_INFO("TESTING Y:");
+		pos = fromZedCameraAxis({0.0f, 1.0f, 0.0f});
+		braccio.lookAt_BR(pos.x, pos.y, pos.z);
+		pos = fromZedCameraAxis({0.0f, 2.0f, 0.0f});
+		braccio.lookAt_BR(pos.x, pos.y, pos.z);
+		pos = fromZedCameraAxis({0.0f, 3.0f, 0.0f});
+		braccio.lookAt_BR(pos.x, pos.y, pos.z);
+
+		ROS_INFO("TESTING X:");
+		pos = fromZedCameraAxis({1.0f, 0.0f, 0.0f});
+		braccio.lookAt_BR(pos.x, pos.y, pos.z);
+		pos = fromZedCameraAxis({2.0f, 0.0f, 0.0f});
+		braccio.lookAt_BR(pos.x, pos.y, pos.z);
+		pos = fromZedCameraAxis({3.0f, 0.0f, 0.0f});
+		braccio.lookAt_BR(pos.x, pos.y, pos.z);
+	}
+}
+
+/*
+NOTES:
+
+The PointCloud<T> data structure appears to have a public 4-element vector
+of floats called sensor_origin_.
+*/
 
 int main(int argc, char **argv)
 {
@@ -155,17 +226,17 @@ int main(int argc, char **argv)
 
 	// REMINDER: Execute "roslaunch zed_wrapper zed.launch" to start receiving input
 
-	//ros::Subscriber img_sub;
-	//img_sub = node_handle.subscribe("/zed/rgb/image_rect_color", 1, imageCallback);
+	ros::Subscriber img_sub;
+	img_sub = node_handle.subscribe("/zed/rgb/image_rect_color", 1, imageCallback);
 
-	// ros::Subscriber pcl2_sub;
-	// pcl2_sub = node_handle.subscribe("/zed/point_cloud/cloud_registered", 1, cloudMapCallback);
+	ros::Subscriber pcl2_sub;
+	pcl2_sub = node_handle.subscribe("/zed/point_cloud/cloud_registered", 1, cloudMapCallback);
 
 	//ros::Subscriber odom_sub;
 	//odom_sub = node_handle.subscribe("/zed/odom", 1, positionCallback);
 
-	Braccio braccio;
-	braccio.initGazeFeedback(node_handle, testCallback);
+	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
+	braccio.lookAt(5.0f, 0.0f, 20.0f);
 
 	ros::spin();
 

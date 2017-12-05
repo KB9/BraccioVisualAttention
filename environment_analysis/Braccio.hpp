@@ -20,6 +20,7 @@ public:
 	                      void (*subscriberCallback)(std_msgs::Bool));
 
 	bool lookAt(float x, float y, float z);
+	bool lookAt_BR(float x, float y, float z);
 
 	void setJointAngles(const BraccioJointAngles &angles);
 	BraccioJointAngles getJointAngles();
