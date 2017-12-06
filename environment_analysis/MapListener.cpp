@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <cmath>
 
 // ROS
 #include "ros/ros.h"
@@ -150,73 +151,35 @@ Pos3d fromZedCameraAxis(Pos3d pos)
 
 void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 {
-	// Perform a deep copy to prevent this being modified whilst this callback
-	// is running (TODO: Check if this is required as callbacks may be executed
-	// concurrently).
-	auto salient_points_copy = salient_points;
+	SalientPoint target_point = salient_points[0];
+	ROS_INFO("Salient point = (%f,%f)", target_point.getCameraX(), target_point.getCameraY());
 
-	ROS_INFO("Salient points: %lu", salient_points_copy.size());
+	// The ZED camera has a diagonal FOV of 110 degrees
+	constexpr double fov = toRadians(110.0f); // for the ZED camera
+	constexpr double diag_length = std::sqrt((1280.0 * 1280.0) + (720.0 * 720.0));
+	constexpr double radians_per_pixel = fov / diag_length;
+	ROS_INFO("Radians per pixel = %f", radians_per_pixel);
 
-	// TODO: There should only be one salient point for now to test that this
-	// works. Later, it should be able to handle any number of points.
-	if (salient_points_copy.size() != 1)
-	{
-		ROS_WARN("For testing, focusing on anything other than one salient point has been disabled!");
-		return;
-	}
-	for (auto &point : salient_points_copy)
-	{
-		// Get the x,y coordinate to search for the point cloud
-		double x = point.getCameraX();
-		double y = point.getCameraY();
-		ROS_INFO("Salient point: (%.3f,%.3f)", x, y);
+	constexpr double center_x = 640.0;
+	constexpr double center_y = 360.0;
 
-		// Convert the point cloud ROS message to a PointCloud object
-		pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud;
-		pcl::fromROSMsg(*pcl_msg, pcl_cloud);
+	double angle_horiz = (target_point.getCameraX() - center_x) * radians_per_pixel;
+	double angle_vert = -(target_point.getCameraY() - center_y) * radians_per_pixel; // Be careful with the direction here...
+	ROS_INFO("Required rotation angles = (%f,%f)", angle_horiz, angle_vert);
 
-		// Get the salient point in 3D from the point cloud
-		pcl::PointXYZRGB salient_pcl_point = getPCLPoint(pcl_cloud, x, y);
-		ROS_INFO("PointCloud salient point: (%.3f,%.3f,%.3f)", salient_pcl_point.x, salient_pcl_point.y, salient_pcl_point.z);
+	const double eff_x = braccio.getEffectorX();
+	const double eff_y = braccio.getEffectorY();
+	const double eff_z = braccio.getEffectorZ();
+	double new_eff_x = cosf(angle_vert)*eff_x + sinf(angle_vert)*sinf(angle_horiz)*eff_y - sinf(angle_vert)*cosf(angle_horiz)*eff_z;
+	double new_eff_y = cosf(angle_horiz)*eff_y + sinf(angle_horiz)*eff_z;
+	double new_eff_z = sinf(angle_vert)*eff_x + cosf(angle_vert)*-sinf(angle_horiz)*eff_y + cosf(angle_vert)*cosf(angle_horiz)*eff_z;
 
-		// NOTE: PCL points are in metres, convert them to centimetres for the kinematics
+	ROS_INFO("Current effector (x,y,z): (%f,%f,%f)", eff_x, eff_y, eff_z);
+	ROS_INFO("New effector (x,y,z): (%f,%f,%f)", new_eff_x, new_eff_y, new_eff_z);
 
-		ROS_INFO("TESTING ORIGIN:");
-		auto pos = fromZedCameraAxis({0.0f, 0.0f, 0.0f});
-		braccio.lookAt_BR(pos.x, pos.y, pos.z);
-
-		ROS_INFO("TESTING Z:");
-		pos = fromZedCameraAxis({0.0f, 0.0f, 1.0f});
-		braccio.lookAt_BR(pos.x, pos.y, pos.z);
-		pos = fromZedCameraAxis({0.0f, 0.0f, 2.0f});
-		braccio.lookAt_BR(pos.x, pos.y, pos.z);
-		pos = fromZedCameraAxis({0.0f, 0.0f, 3.0f});
-		braccio.lookAt_BR(pos.x, pos.y, pos.z);
-
-		ROS_INFO("TESTING Y:");
-		pos = fromZedCameraAxis({0.0f, 1.0f, 0.0f});
-		braccio.lookAt_BR(pos.x, pos.y, pos.z);
-		pos = fromZedCameraAxis({0.0f, 2.0f, 0.0f});
-		braccio.lookAt_BR(pos.x, pos.y, pos.z);
-		pos = fromZedCameraAxis({0.0f, 3.0f, 0.0f});
-		braccio.lookAt_BR(pos.x, pos.y, pos.z);
-
-		ROS_INFO("TESTING X:");
-		pos = fromZedCameraAxis({1.0f, 0.0f, 0.0f});
-		braccio.lookAt_BR(pos.x, pos.y, pos.z);
-		pos = fromZedCameraAxis({2.0f, 0.0f, 0.0f});
-		braccio.lookAt_BR(pos.x, pos.y, pos.z);
-		pos = fromZedCameraAxis({3.0f, 0.0f, 0.0f});
-		braccio.lookAt_BR(pos.x, pos.y, pos.z);
-	}
+	ROS_INFO("LOOKAT CALLED");
+	bool ok = braccio.lookAt(new_eff_x, new_eff_y, new_eff_z);
 }
-
-/*
-NOTES:
-
-The PointCloud<T> data structure appears to have a public 4-element vector
-of floats called sensor_origin_.
-*/
 
 int main(int argc, char **argv)
 {
@@ -236,7 +199,7 @@ int main(int argc, char **argv)
 	//odom_sub = node_handle.subscribe("/zed/odom", 1, positionCallback);
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
-	braccio.lookAt(5.0f, 0.0f, 20.0f);
+	braccio.lookAt(20.0f, 20.0f, 20.0f);
 
 	ros::spin();
 

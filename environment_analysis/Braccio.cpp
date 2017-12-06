@@ -45,6 +45,22 @@ bool Braccio::lookAt_BR(float x, float y, float z)
 	ROS_INFO("Base relative: (%.3f,%.3f,%.3f)", base_relative_pos.x, base_relative_pos.y, base_relative_pos.z);
 
 	// TODO: Make this move the the Braccio
+	lookAt(base_relative_pos.x, base_relative_pos.y, base_relative_pos.z);
+}
+
+float Braccio::getEffectorX()
+{
+	return kinematics.getEffectorPos3d().x;
+}
+
+float Braccio::getEffectorY()
+{
+	return kinematics.getEffectorPos3d().y;
+}
+
+float Braccio::getEffectorZ()
+{
+	return kinematics.getEffectorPos3d().z;
 }
 
 void Braccio::setJointAngles(const BraccioJointAngles &angles)

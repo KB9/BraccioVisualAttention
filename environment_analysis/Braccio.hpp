@@ -22,6 +22,11 @@ public:
 	bool lookAt(float x, float y, float z);
 	bool lookAt_BR(float x, float y, float z);
 
+	// TESTING
+	float getEffectorX();
+	float getEffectorY();
+	float getEffectorZ();
+
 	void setJointAngles(const BraccioJointAngles &angles);
 	BraccioJointAngles getJointAngles();
 
