@@ -36,6 +36,7 @@ bool Braccio::lookAt(float x, float y, float z)
 		setJointAngles(new_angles);
 	else
 		ROS_WARN("IK could not solve for (%f,%f,%f)", x, y, z);
+	return ok;
 }
 
 bool Braccio::lookAt_BR(float x, float y, float z)

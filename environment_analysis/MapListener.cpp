@@ -83,7 +83,6 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
 	detector->detect(image, keypoints);
 
 	// Create the vector containing the wrapped salient keypoints
-	// std::vector<SalientPoint> salient_points;
 	std::for_each(keypoints.begin(), keypoints.end(), [&](cv::KeyPoint& k)
 	{
 		salient_points.emplace_back(k, k.pt.x, k.pt.y, 0);
@@ -95,9 +94,6 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
 	salient_points.erase(std::remove_if(salient_points.begin(), salient_points.end(),
 		[&](SalientPoint& p) { return p.getSaliencyScore() < sd; }),
 		salient_points.end());
-
-	// TESTING: REMOVE ALL SALIENT POINTS APART FROM ONE!
-	salient_points.erase(++salient_points.begin(), salient_points.end());
 
 	// Draw the surviving key points on the original image
 	for (const auto& point : salient_points)
@@ -149,9 +145,17 @@ Pos3d fromZedCameraAxis(Pos3d pos)
 	return {pos.z, pos.x, -pos.y};
 }
 
+size_t count = 0;
+
 void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 {
-	SalientPoint target_point = salient_points[0];
+	if (count >= salient_points.size())
+	{
+		ROS_ERROR("COULDN'T LOOK AT ANY SALIENT POINTS");
+		return;
+	}
+
+	SalientPoint target_point = salient_points[count];
 	ROS_INFO("Salient point = (%f,%f)", target_point.getCameraX(), target_point.getCameraY());
 
 	// The ZED camera has a diagonal FOV of 110 degrees
@@ -178,7 +182,17 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 	ROS_INFO("New effector (x,y,z): (%f,%f,%f)", new_eff_x, new_eff_y, new_eff_z);
 
 	ROS_INFO("LOOKAT CALLED");
-	bool ok = braccio.lookAt(new_eff_x, new_eff_y, new_eff_z);
+	bool ok = braccio.lookAt(new_eff_x * 10.0f, new_eff_y * 10.0f, new_eff_z * 10.0f);
+	if (ok)
+	{
+		count = 0;
+	}
+	else
+	{
+		count++;
+		ROS_INFO("LOOKING AT NEXT POINT ALONG: %d", count);
+		onBraccioGazeFocusedCallback(std_msgs::Bool{});
+	}
 }
 
 int main(int argc, char **argv)
@@ -199,7 +213,7 @@ int main(int argc, char **argv)
 	//odom_sub = node_handle.subscribe("/zed/odom", 1, positionCallback);
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
-	braccio.lookAt(20.0f, 20.0f, 20.0f);
+	braccio.lookAt(30.0f, 30.0f, 50.0f);
 
 	ros::spin();
 
