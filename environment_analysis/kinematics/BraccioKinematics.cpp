@@ -190,12 +190,20 @@ std::pair<Angles, bool> solve3d_constrained(Pos3d tgt, Lengths lengths, JointCon
 	// Convert the 3d representation to a 2d one.
 	float base_angle = atan2(tgt.y, tgt.x);
 
+	// From 0 to 2pi
 	if (base_angle < 0.0f) base_angle = 2 * PI + base_angle;
 
+	int negate = 1;
+
 	if (!satisfies(base_constraint, base_angle)) {
-		return empty;
+		base_angle -= PI;
+		negate = -1;
+		if (!satisfies(base_constraint, base_angle)) {
+			return empty;
+		}
 	}
-	float new_x = std::hypot(tgt.x, tgt.y);
+	// Hypoteneuse is always positive, so need to negate it to look behind
+	float new_x = std::hypot(tgt.x, tgt.y) * negate;
 	float new_y = tgt.z;
 	Pos2d new_tgt = {new_x, new_y};
 
