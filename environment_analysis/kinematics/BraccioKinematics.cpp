@@ -136,9 +136,13 @@ std::pair<JointAngles, bool> solve2d(Pos2d tgt, Lengths lengths, JointAngles sta
 {
 	float dist = std::hypot(tgt.x, tgt.y);
 	float max_dist = lengths.l1 + lengths.l2 + lengths.l3;
-	if (dist >= max_dist) {
-		float base_angle = std::atan2(tgt.y, tgt.x);
-		return {{base_angle, 0, 0}, true};
+	if (dist >= max_dist)
+	{
+		// If the distance is greater than the arm can physically reach, increase
+		// the length of its final segment such that it can "physically" reach that
+		// point
+		float new_l3_length = dist - (max_dist / 2.0f);
+		lengths.l3 = new_l3_length;
 	}
 
 	JointAngles angles = start;
