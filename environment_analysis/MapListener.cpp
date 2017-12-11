@@ -31,26 +31,12 @@
 #include "SalientPoint.hpp"
 #include "Braccio.hpp"
 
-/*
-ROADMAP:
-
-[x] Get the position and colors of all points in the cloud.
-[x] Get the position and orientation of the camera.
-[x] Get the live RGB image of the scene from the camera.
-[x] Get the SIFT features from the live RGB image.
-[ ] Calculate the saliency score for each keypoint.
-	- TODO: Should use three standard deviations.
-	- TODO: x_offset, y_offset in saliency score should be from image center
-[ ] Create a working memory pool for salient points.
-	- How do I prevent salient points being re-added for the current gaze point,
-	  and those same points once the gaze has been shifted?
-	  - Lowe's matching algorithm (SIFT), most likely can be achieved
-	    with ORB as well.
-*/
+#include "GaussianMap.hpp"
 
 Braccio braccio;
 sensor_msgs::PointCloud2Ptr pcl_msg = nullptr;
 std::vector<SalientPoint> salient_points;
+GaussianMap gaussian_map;
 
 double calculateSaliencyMean(const std::vector<SalientPoint>& points)
 {
@@ -94,6 +80,9 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
 	salient_points.erase(std::remove_if(salient_points.begin(), salient_points.end(),
 		[&](SalientPoint& p) { return p.getSaliencyScore() < sd; }),
 		salient_points.end());
+
+	// Draw marker in center to indicate gaze focus point
+	cv::circle(image, {image.cols/2,image.rows/2}, 1, {0,0,255,255});
 
 	// Draw the surviving key points on the original image
 	for (const auto& point : salient_points)
@@ -145,53 +134,68 @@ Pos3d fromZedCameraAxis(Pos3d pos)
 	return {pos.z, pos.x, -pos.y};
 }
 
-size_t count = 0;
-
 void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 {
-	if (count >= salient_points.size())
+	if (salient_points.size() == 0)
 	{
-		ROS_ERROR("COULDN'T LOOK AT ANY SALIENT POINTS");
+		ROS_WARN("No salient points in view to focus on");
 		return;
 	}
-
-	SalientPoint target_point = salient_points[count];
-	ROS_INFO("Salient point = (%f,%f)", target_point.getCameraX(), target_point.getCameraY());
 
 	// The ZED camera has a diagonal FOV of 110 degrees
 	constexpr double fov = toRadians(110.0f); // for the ZED camera
 	constexpr double diag_length = std::sqrt((1280.0 * 1280.0) + (720.0 * 720.0));
 	constexpr double radians_per_pixel = fov / diag_length;
-	ROS_INFO("Radians per pixel = %f", radians_per_pixel);
 
 	constexpr double center_x = 640.0;
 	constexpr double center_y = 360.0;
 
-	double angle_horiz = (target_point.getCameraX() - center_x) * radians_per_pixel;
-	double angle_vert = -(target_point.getCameraY() - center_y) * radians_per_pixel; // Be careful with the direction here...
-	ROS_INFO("Required rotation angles = (%f,%f)", angle_horiz, angle_vert);
+	float best_point_dist = 0.0f;
+	float best_x = 0.0f, best_y = 0.0f, best_z = 0.0f;
+	for (auto &point : salient_points)
+	{
+		// Compute the horizontal and vertical angles required to reach the point
+		double angle_horiz = (point.getCameraX() - center_x) * radians_per_pixel;
+		double angle_vert = -(point.getCameraY() - center_y) * radians_per_pixel; // Be careful with the direction here...
 
-	const double eff_x = braccio.getEffectorX();
-	const double eff_y = braccio.getEffectorY();
-	const double eff_z = braccio.getEffectorZ();
-	double new_eff_x = cosf(angle_vert)*eff_x + sinf(angle_vert)*sinf(angle_horiz)*eff_y - sinf(angle_vert)*cosf(angle_horiz)*eff_z;
-	double new_eff_y = cosf(angle_horiz)*eff_y + sinf(angle_horiz)*eff_z;
-	double new_eff_z = sinf(angle_vert)*eff_x + cosf(angle_vert)*-sinf(angle_horiz)*eff_y + cosf(angle_vert)*cosf(angle_horiz)*eff_z;
+		// Compute the 3D position of the effector after the rotation is applied
+		const double eff_x = braccio.getEffectorX();
+		const double eff_y = braccio.getEffectorY();
+		const double eff_z = braccio.getEffectorZ();
+		double new_eff_x = cosf(angle_vert)*eff_x + sinf(angle_vert)*sinf(angle_horiz)*eff_y - sinf(angle_vert)*cosf(angle_horiz)*eff_z;
+		double new_eff_y = cosf(angle_horiz)*eff_y + sinf(angle_horiz)*eff_z;
+		double new_eff_z = sinf(angle_vert)*eff_x + cosf(angle_vert)*-sinf(angle_horiz)*eff_y + cosf(angle_vert)*cosf(angle_horiz)*eff_z;
 
-	ROS_INFO("Current effector (x,y,z): (%f,%f,%f)", eff_x, eff_y, eff_z);
-	ROS_INFO("New effector (x,y,z): (%f,%f,%f)", new_eff_x, new_eff_y, new_eff_z);
+		// Extend these points to fake a sense of depth from the effector/origin
+		const float depth_factor = 20.0f;
+		new_eff_x *= depth_factor;
+		new_eff_y *= depth_factor;
+		new_eff_z *= depth_factor;
 
-	ROS_INFO("LOOKAT CALLED");
-	bool ok = braccio.lookAt(new_eff_x * 10.0f, new_eff_y * 10.0f, new_eff_z * 10.0f);
+		// The best salient point to look at will be the point with the highest
+		// saliency value and the lowest result from the gaussian computation.
+		// This point can be found by adding the saliency score to the negated
+		// gaussian result, and finding the absolute distance between these values
+		// (This can also be achieved by multiplying the gaussian result by 2).
+		float point_dist = point.getSaliencyScore() + (gaussian_map.calculate(new_eff_x, new_eff_y, new_eff_z) * 2.0f);
+		if (point_dist > best_point_dist)
+		{
+			best_point_dist = point_dist;
+			best_x = new_eff_x;
+			best_y = new_eff_y;
+			best_z = new_eff_z;
+		}
+	}
+
+	// Focus the camera on the point with the highest score
+	ROS_INFO("Best point to focus on: (%.2f,%.2f,%.2f)", best_x, best_y, best_z);
+	ROS_INFO("Point had highest score: %.f", best_point_dist);
+	bool ok = braccio.lookAt(best_x, best_y, best_z);
 	if (ok)
 	{
-		count = 0;
-	}
-	else
-	{
-		count++;
-		ROS_INFO("LOOKING AT NEXT POINT ALONG: %d", count);
-		onBraccioGazeFocusedCallback(std_msgs::Bool{});
+		// Decay all existing Gaussians, and add the new point to the map
+		gaussian_map.decay(5.0f);
+		gaussian_map.add(best_x, best_y, best_z, 1000.0f);
 	}
 }
 
@@ -213,7 +217,7 @@ int main(int argc, char **argv)
 	//odom_sub = node_handle.subscribe("/zed/odom", 1, positionCallback);
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
-	braccio.lookAt(30.0f, 30.0f, 50.0f);
+	braccio.lookAt(5.0f, 0.0f, 20.0f);
 
 	ros::spin();
 
