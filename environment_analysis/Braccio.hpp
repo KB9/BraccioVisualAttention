@@ -20,7 +20,7 @@ public:
 	                      void (*subscriberCallback)(std_msgs::Bool));
 
 	bool lookAt(float x, float y, float z);
-	bool lookAt_BR(float x, float y, float z);
+	Pos3d toBaseRelative(float x, float y, float z);
 
 	// TESTING
 	float getEffectorX();

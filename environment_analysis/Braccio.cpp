@@ -39,14 +39,9 @@ bool Braccio::lookAt(float x, float y, float z)
 	return ok;
 }
 
-bool Braccio::lookAt_BR(float x, float y, float z)
+Pos3d Braccio::toBaseRelative(float x, float y, float z)
 {
-	ROS_INFO("Camera relative: (%.3f,%.3f,%.3f)", x, y, z);
-	Pos3d base_relative_pos = kinematics.toBaseRelative(x, y, z);
-	ROS_INFO("Base relative: (%.3f,%.3f,%.3f)", base_relative_pos.x, base_relative_pos.y, base_relative_pos.z);
-
-	// TODO: Make this move the the Braccio
-	lookAt(base_relative_pos.x, base_relative_pos.y, base_relative_pos.z);
+	return kinematics.toBaseRelative(x, y, z);
 }
 
 float Braccio::getEffectorX()
