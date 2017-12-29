@@ -28,15 +28,21 @@
 #include "opencv2/core.hpp"
 #include "opencv2/xfeatures2d.hpp"
 
+// Eigen
+#include <Eigen/Core>
+
 #include "SalientPoint.hpp"
 #include "Braccio.hpp"
 
 #include "GaussianMap.hpp"
+#include "GazeVisualizer.hpp"
 
 Braccio braccio;
 sensor_msgs::PointCloud2Ptr pcl_msg = nullptr;
 std::vector<SalientPoint> salient_points;
 GaussianMap gaussian_map;
+
+std::unique_ptr<GazeVisualizer> visualizer = nullptr;
 
 double calculateSaliencyMean(const std::vector<SalientPoint>& points)
 {
@@ -58,15 +64,17 @@ double calculateSaliencySD(const std::vector<SalientPoint>& points)
 
 void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
 {
+	// Update the gaze visualizer with the latest image from the camera
+	if (visualizer == nullptr)
+		visualizer = std::make_unique<GazeVisualizer>(img_msg);
+	else
+		visualizer->update(img_msg);
+
+	// Clear all existing salient point
 	salient_points.clear();
 
-	// Convert from the ROS image message to an OpenCV image
-	cv::Mat image = cv_bridge::toCvCopy(img_msg)->image;
-
-	// Detect the ORB key points in the image
-	std::vector<cv::KeyPoint> keypoints;
-	cv::Ptr<cv::ORB> detector = cv::ORB::create();
-	detector->detect(image, keypoints);
+	// Detect the key points in the image
+	std::vector<cv::KeyPoint> keypoints = visualizer->detectKeyPoints();
 
 	// Create the vector containing the wrapped salient keypoints
 	std::for_each(keypoints.begin(), keypoints.end(), [&](cv::KeyPoint& k)
@@ -81,16 +89,12 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
 		[&](SalientPoint& p) { return p.getSaliencyScore() < sd; }),
 		salient_points.end());
 
-	// Draw marker in center to indicate gaze focus point
-	cv::circle(image, {image.cols/2,image.rows/2}, 1, {0,0,255,255});
-
-	// Draw the surviving key points on the original image
+	// Draw the keypoint that were found using the visualizer
 	for (const auto& point : salient_points)
-		cv::drawKeypoints(image, { point.getKeyPoint() }, image);
+		visualizer->drawKeyPoint(point.getKeyPoint());
 
-	// Display the image with key points
-	cv::imshow("view", image);
-	cv::waitKey(30);
+	// Display the result
+	visualizer->show();
 }
 
 void cloudMapCallback(const sensor_msgs::PointCloud2Ptr& cloud_msg)
@@ -129,9 +133,84 @@ pcl::PointXYZRGB getPCLPoint(pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud,
 	}
 }
 
-Pos3d fromZedCameraAxis(Pos3d pos)
+Pos3d toBraccioKinematicsAxes(Pos3d pos)
 {
 	return {pos.z, pos.x, -pos.y};
+}
+
+Pos3d calculateGazePointFromImage(float diag_fov, float width, float height,
+                                  float x, float y)
+{
+	float diag_length = std::hypot(width, height);
+	float radians_per_pixel = diag_fov / diag_length;
+
+	float eff_x = braccio.getEffectorX();
+	float eff_y = braccio.getEffectorY();
+	float eff_z = braccio.getEffectorZ();
+
+	float center_x = width / 2.0f;
+	float center_y = height / 2.0f;
+
+	float angle_horiz = (x - center_x) * radians_per_pixel;
+	float angle_vert = -(center_y - y) * radians_per_pixel;
+
+	Eigen::MatrixXf rot_y(3, 3);
+	rot_y(0, 0) = cosf(angle_vert);
+	rot_y(0, 1) = 0;
+	rot_y(0, 2) = sinf(angle_vert);
+	rot_y(1, 0) = 0;
+	rot_y(1, 1) = 1;
+	rot_y(1, 2) = 0;
+	rot_y(2, 0) = -sinf(angle_vert);
+	rot_y(2, 1) = 0;
+	rot_y(2, 2) = cosf(angle_vert);
+
+	Eigen::MatrixXf rot_z(3, 3);
+	rot_z(0, 0) = cosf(angle_horiz);
+	rot_z(0, 1) = -sinf(angle_horiz);
+	rot_z(0, 2) = 0;
+	rot_z(1, 0) = sinf(angle_horiz);
+	rot_z(1, 1) = cosf(angle_horiz);
+	rot_z(1, 2) = 0;
+	rot_z(2, 0) = 0;
+	rot_z(2, 1) = 0;
+	rot_z(2, 2) = 1;
+
+	Eigen::MatrixXf pos(3, 1);
+	pos(0, 0) = eff_x;
+	pos(1, 0) = eff_y;
+	pos(2, 0) = eff_z;
+
+	Eigen::MatrixXf result = rot_y * rot_z * pos;
+	float new_eff_x = result(0, 0);
+	float new_eff_y = result(1, 0);
+	float new_eff_z = result(2, 0);
+
+	// Get the y-rotation of the effector
+	BraccioJointAngles angles = braccio.getJointAngles();
+	float angle_eff = angles.shoulder + (angles.elbow - 90.0f) + (angles.wrist - 90.0f);
+	angle_eff = toRadians(angle_eff);
+
+	// Work out the z-offset caused by the planar angle of the effector
+	float depth_factor = 10.0f;
+	new_eff_x *= depth_factor;
+	new_eff_y *= depth_factor;
+	new_eff_z += std::hypot(new_eff_x, new_eff_y) * tanf(angle_eff);
+
+	return {new_eff_x, new_eff_y, new_eff_z};
+}
+
+Pos3d calculateGazePointFromPCL(pcl::PointXYZRGB point)
+{
+	// PCL points are in metres, convert them to centimetres for the kinematics
+	float px = point.x * 100.0f;
+	float py = point.y * 100.0f;
+	float pz = point.z * 100.0f;
+
+	auto pos = toBraccioKinematicsAxes({px, py, pz});
+	auto br_pos = braccio.toBaseRelative(pos.x, pos.y, pos.z);
+
+	return {br_pos.x, br_pos.y, br_pos.z};
 }
 
 void onBraccioGazeFocusedCallback(std_msgs::Bool value)
@@ -142,50 +221,58 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 		return;
 	}
 
-	// The ZED camera has a diagonal FOV of 110 degrees
-	constexpr double fov = toRadians(110.0f); // for the ZED camera
-	constexpr double diag_length = std::sqrt((1280.0 * 1280.0) + (720.0 * 720.0));
-	constexpr double radians_per_pixel = fov / diag_length;
-
-	constexpr double center_x = 640.0;
-	constexpr double center_y = 360.0;
+	// Convert the point cloud ROS message to a PointCloud object
+	pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud;
+	pcl::fromROSMsg(*pcl_msg, pcl_cloud);
 
 	float best_point_dist = 0.0f;
 	float best_x = 0.0f, best_y = 0.0f, best_z = 0.0f;
+	bool using_pcl_point = false;
 	for (auto &point : salient_points)
 	{
-		// Compute the horizontal and vertical angles required to reach the point
-		double angle_horiz = (point.getCameraX() - center_x) * radians_per_pixel;
-		double angle_vert = -(point.getCameraY() - center_y) * radians_per_pixel; // Be careful with the direction here...
-
-		// Compute the 3D position of the effector after the rotation is applied
-		const double eff_x = braccio.getEffectorX();
-		const double eff_y = braccio.getEffectorY();
-		const double eff_z = braccio.getEffectorZ();
-		double new_eff_x = cosf(angle_vert)*eff_x + sinf(angle_vert)*sinf(angle_horiz)*eff_y - sinf(angle_vert)*cosf(angle_horiz)*eff_z;
-		double new_eff_y = cosf(angle_horiz)*eff_y + sinf(angle_horiz)*eff_z;
-		double new_eff_z = sinf(angle_vert)*eff_x + cosf(angle_vert)*-sinf(angle_horiz)*eff_y + cosf(angle_vert)*cosf(angle_horiz)*eff_z;
-
-		// Extend these points to fake a sense of depth from the effector/origin
-		const float depth_factor = 20.0f;
-		new_eff_x *= depth_factor;
-		new_eff_y *= depth_factor;
-		new_eff_z *= depth_factor;
+		// If the PCL point is finite, use it to calculate the gaze point. If not,
+		// fall back to calculating using the image and camera specs to estimate
+		// the position.
+		Pos3d point3d;
+		pcl::PointXYZRGB salient_pcl_point = getPCLPoint(pcl_cloud, point.getCameraX(), point.getCameraY());
+		if (pcl::isFinite(salient_pcl_point))
+		{
+			point3d = calculateGazePointFromPCL(salient_pcl_point);
+			using_pcl_point = true;
+		}
+		else
+		{
+			float diag_fov = toRadians(75.0f);
+			float width = 640.0f;
+			float height = 480.0f;
+			point3d = calculateGazePointFromImage(diag_fov, width, height,
+			                                      point.getCameraX(),
+			                                      point.getCameraY());
+			using_pcl_point = false;
+		}
 
 		// The best salient point to look at will be the point with the highest
 		// saliency value and the lowest result from the gaussian computation.
 		// This point can be found by adding the saliency score to the negated
 		// gaussian result, and finding the absolute distance between these values
 		// (This can also be achieved by multiplying the gaussian result by 2).
-		float point_dist = point.getSaliencyScore() + (gaussian_map.calculate(new_eff_x, new_eff_y, new_eff_z) * 2.0f);
+		float point_dist = point.getSaliencyScore() + (gaussian_map.calculate(point3d.x, point3d.y, point3d.z) * 2.0f);
 		if (point_dist > best_point_dist)
 		{
 			best_point_dist = point_dist;
-			best_x = new_eff_x;
-			best_y = new_eff_y;
-			best_z = new_eff_z;
+			best_x = point3d.x;
+			best_y = point3d.y;
+			best_z = point3d.z;
+
+			visualizer->setGazePoint(point.getCameraX(), point.getCameraY());
 		}
 	}
+
+	// Report the data that was used to calculate the new gaze point
+	if (using_pcl_point)
+		ROS_INFO("Using available PCL point to calculate gaze point.");
+	else
+		ROS_INFO("PCL point not available. Reverting to image to estimate gaze point.");
 
 	// Focus the camera on the point with the highest score
 	ROS_INFO("Best point to focus on: (%.2f,%.2f,%.2f)", best_x, best_y, best_z);
@@ -208,16 +295,16 @@ int main(int argc, char **argv)
 	// REMINDER: Execute "roslaunch zed_wrapper zed.launch" to start receiving input
 
 	ros::Subscriber img_sub;
-	img_sub = node_handle.subscribe("/zed/rgb/image_rect_color", 1, imageCallback);
+	img_sub = node_handle.subscribe("/camera/rgb/image_rect_color", 1, imageCallback);
 
 	ros::Subscriber pcl2_sub;
-	pcl2_sub = node_handle.subscribe("/zed/point_cloud/cloud_registered", 1, cloudMapCallback);
+	pcl2_sub = node_handle.subscribe("/camera/depth_registered/points", 1, cloudMapCallback);
 
 	//ros::Subscriber odom_sub;
 	//odom_sub = node_handle.subscribe("/zed/odom", 1, positionCallback);
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
-	braccio.lookAt(5.0f, 0.0f, 20.0f);
+	braccio.lookAt(5.0f, 5.0f, 20.0f);
 
 	ros::spin();
 
