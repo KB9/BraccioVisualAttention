@@ -293,19 +293,19 @@ Pos3d BraccioKinematics::applyAxisRotation(float rad_z, float rad_y, float x, fl
 	Eigen::MatrixXf rot_y(3, 3);
 	rot_y(0, 0) = cosf(rad_y);
 	rot_y(0, 1) = 0;
-	rot_y(0, 2) = -sinf(rad_y);
+	rot_y(0, 2) = sinf(rad_y);
 	rot_y(1, 0) = 0;
 	rot_y(1, 1) = 1;
 	rot_y(1, 2) = 0;
-	rot_y(2, 0) = sinf(rad_y);
+	rot_y(2, 0) = -sinf(rad_y);
 	rot_y(2, 1) = 0;
 	rot_y(2, 2) = cosf(rad_y);
 
 	Eigen::MatrixXf rot_z(3, 3);
 	rot_z(0, 0) = cosf(rad_z);
-	rot_z(0, 1) = sinf(rad_z);
+	rot_z(0, 1) = -sinf(rad_z);
 	rot_z(0, 2) = 0;
-	rot_z(1, 0) = -sinf(rad_z);
+	rot_z(1, 0) = sinf(rad_z);
 	rot_z(1, 1) = cosf(rad_z);
 	rot_z(1, 2) = 0;
 	rot_z(2, 0) = 0;
