@@ -10,6 +10,6 @@ add_service_files(FILES ObjectDetection.srv)
 # Declare a catkin package
 catkin_python_setup()
 generate_messages(DEPENDENCIES std_msgs sensor_msgs)
-catkin_package()
+catkin_package(CATKIN_DEPENDS message_runtime std_msgs sensor_msgs)
 
 catkin_install_python(PROGRAMS src/object_detection/object_detection_demo.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})

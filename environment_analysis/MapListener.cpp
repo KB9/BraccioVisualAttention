@@ -37,12 +37,17 @@
 #include "GaussianMap.hpp"
 #include "GazeVisualizer.hpp"
 
+// TensorFlow object_detection ROS service
+#include "tf_object_detection/ObjectDetection.h"
+
 Braccio braccio;
 sensor_msgs::PointCloud2Ptr pcl_msg = nullptr;
 std::vector<SalientPoint> salient_points;
 GaussianMap gaussian_map;
 
 std::unique_ptr<GazeVisualizer> visualizer = nullptr;
+
+ros::ServiceClient client;
 
 double calculateSaliencyMean(const std::vector<SalientPoint>& points)
 {
@@ -62,7 +67,7 @@ double calculateSaliencySD(const std::vector<SalientPoint>& points)
 	return std::sqrt(((double)1 / (double)points.size()) * sum_of_differences);
 }
 
-void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
+void imageCallback(const sensor_msgs::Image &img_msg)
 {
 	// Update the gaze visualizer with the latest image from the camera
 	if (visualizer == nullptr)
@@ -75,6 +80,21 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img_msg)
 
 	// Detect the key points in the image
 	std::vector<cv::KeyPoint> keypoints = visualizer->detectKeyPoints();
+
+	// After the keypoints have been found in the original image message, detect
+	// objects and update the image with boxes signifying objects before drawing
+	// the keypoints
+	tf_object_detection::ObjectDetection srv;
+	srv.request.image = img_msg;
+	if (client.call(srv))
+	{
+		sensor_msgs::Image result_img_msg = srv.response.result_image;
+		visualizer->update(result_img_msg);
+	}
+	else
+	{
+		ROS_WARN("Did not get a response from tf_object_detection service");
+	}
 
 	// Create the vector containing the wrapped salient keypoints
 	std::for_each(keypoints.begin(), keypoints.end(), [&](cv::KeyPoint& k)
@@ -295,16 +315,21 @@ int main(int argc, char **argv)
 	// REMINDER: Execute "roslaunch zed_wrapper zed.launch" to start receiving input
 
 	ros::Subscriber img_sub;
-	img_sub = node_handle.subscribe("/camera/rgb/image_rect_color", 1, imageCallback);
+	img_sub = node_handle.subscribe("/zed/rgb/image_rect_color", 1, imageCallback);
 
-	ros::Subscriber pcl2_sub;
-	pcl2_sub = node_handle.subscribe("/camera/depth_registered/points", 1, cloudMapCallback);
+	// DISABLED: For object detection, only focus on the image for now
+	// ros::Subscriber pcl2_sub;
+	// pcl2_sub = node_handle.subscribe("/zed/point_cloud/cloud_registered", 1, cloudMapCallback);
 
 	//ros::Subscriber odom_sub;
 	//odom_sub = node_handle.subscribe("/zed/odom", 1, positionCallback);
 
-	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
-	braccio.lookAt(5.0f, 5.0f, 20.0f);
+	// DISABLED: For object detection, Braccio functionality disabled
+	// braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
+	// braccio.lookAt(5.0f, 5.0f, 20.0f);
+
+	// Set up this node as a client of the TensorFlow object_detection service
+	client = node_handle.serviceClient<tf_object_detection::ObjectDetection>("object_detection");
 
 	ros::spin();
 

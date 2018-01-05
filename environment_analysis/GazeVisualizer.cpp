@@ -6,7 +6,7 @@
 #include "opencv2/features2d.hpp"
 #include "opencv2/xfeatures2d.hpp"
 
-GazeVisualizer::GazeVisualizer(const sensor_msgs::ImageConstPtr &img_msg)
+GazeVisualizer::GazeVisualizer(const sensor_msgs::Image &img_msg)
 {
 	image = image = cv_bridge::toCvCopy(img_msg)->image;
 }
@@ -37,7 +37,7 @@ void GazeVisualizer::setGazePoint(int x, int y)
 	cv::resize(temp, gaze_target_image, cv::Size(), 0.25, 0.25);
 }
 
-void GazeVisualizer::update(const sensor_msgs::ImageConstPtr &img_msg)
+void GazeVisualizer::update(const sensor_msgs::Image &img_msg)
 {
 	image = image = cv_bridge::toCvCopy(img_msg)->image;
 }
