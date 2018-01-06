@@ -160,11 +160,11 @@ def handle_object_detection(req):
 		print e
 
 	# Since cv2 images are numpy NDarrays, it can simply be passed as one
-	(cv_image, detected_object_list) = detect(cv_image, detection_graph, category_index, tf_session);
+	(cv_image, detected_objects_list) = detect(cv_image, detection_graph, category_index, tf_session);
 
 	# Convert the image with detected objects back into a ROS message
-	result_msg = bridge.cv2_to_imgmsg(cv_image, encoding="passthrough")
-	return ObjectDetectionResponse(result_msg)
+	result_image = bridge.cv2_to_imgmsg(cv_image, encoding="passthrough")
+	return ObjectDetectionResponse(result_image, detected_objects_list)
 
 def object_detection_server():
 	global detection_graph, category_index, tf_session

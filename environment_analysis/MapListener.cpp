@@ -39,6 +39,7 @@
 
 // TensorFlow object_detection ROS service
 #include "tf_object_detection/ObjectDetection.h"
+#include "tf_object_detection/DetectedObject.h"
 
 Braccio braccio;
 sensor_msgs::PointCloud2Ptr pcl_msg = nullptr;
@@ -88,8 +89,26 @@ void imageCallback(const sensor_msgs::Image &img_msg)
 	srv.request.image = img_msg;
 	if (client.call(srv))
 	{
-		sensor_msgs::Image result_img_msg = srv.response.result_image;
-		visualizer->update(result_img_msg);
+		// Only modify the camera image with detected object boxes if detected
+		// objects are actually found
+		std::vector<tf_object_detection::DetectedObject> detected_objects = srv.response.detected_objects;
+		if (!detected_objects.empty())
+		{
+			// Update the visualization image
+			sensor_msgs::Image result_img_msg = srv.response.result_image;
+			visualizer->update(result_img_msg);
+
+			// Report the detected objects
+			for (auto &obj : detected_objects)
+			{
+				ROS_INFO("Class: %s", obj.obj_class.c_str());
+				ROS_INFO("Score: %f", obj.score);
+				ROS_INFO("Left: %u", obj.left);
+				ROS_INFO("Top: %u", obj.top);
+				ROS_INFO("Right: %u", obj.right);
+				ROS_INFO("Bottom: %u", obj.bottom);
+			}
+		}
 	}
 	else
 	{

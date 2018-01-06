@@ -4,6 +4,9 @@ project(tf_object_detection)
 ## Find catkin and any catkin packages
 find_package(catkin REQUIRED COMPONENTS rospy std_msgs sensor_msgs message_generation)
 
+# Add detected object msg file
+add_message_files(FILES DetectedObject.msg)
+
 # Add object detection service file
 add_service_files(FILES ObjectDetection.srv)
 

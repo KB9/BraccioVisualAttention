@@ -1,3 +1,4 @@
 sensor_msgs/Image image
 ---
 sensor_msgs/Image result_image
+tf_object_detection/DetectedObject[] detected_objects
