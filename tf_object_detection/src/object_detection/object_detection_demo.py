@@ -55,7 +55,22 @@ def load_label_map(labels_path, num_classes):
 	category_index = label_map_util.create_category_index(categories)
 	return category_index
 
+class DetectedObject:
+
+	def __init__(self, score, obj_class, left, top, right, bottom):
+		self.score = score
+		self.obj_class = obj_class
+		self.left = left
+		self.top = top
+		self.right = right
+		self.bottom = bottom
+
+	def __str__(self):
+		return "Class: %s\nScore: %s\nLeft: %s\nTop: %s\nRight: %s\nBottom: %s" % (self.obj_class, self.score, self.left, self.top, self.right, self.bottom)
+
 def detect(image_np, detection_graph, category_index, tf_session):
+	min_score_threshold = 0.5
+
 	with detection_graph.as_default():
 		# Definite input and output Tensors for detection_graph
 		image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
@@ -77,8 +92,29 @@ def detect(image_np, detection_graph, category_index, tf_session):
 		                                                   np.squeeze(scores),
 		                                                   category_index,
 		                                                   use_normalized_coordinates=True,
-		                                                   line_thickness=8)
-	return image_np
+		                                                   line_thickness=8,
+		                                                   min_score_thresh=min_score_threshold)
+
+		# Create a list of detected objects
+		height, width, _ = image_np.shape
+		detected_objects_list = []
+		for i in range(0, num):
+			# Only add to the list of detected objects if it is higher than the
+			# threshold
+			score = scores[0][i]
+			if score >= min_score_threshold:
+				obj_class = category_index[classes[0][i]]['name']
+				top, left, bottom, right = boxes[0][i]
+				# Multiply by the image dimensions as object coordinates are
+				# normalized
+				left *= width
+				top *= height
+				right *= width
+				bottom *= height
+				detected_object = DetectedObject(score, obj_class, left, top, right, bottom)
+				detected_objects_list.append(detected_object)
+
+	return (image_np, detected_objects_list)
 
 def setup_object_detection():
 	rospack = rospkg.RosPack()
@@ -124,7 +160,7 @@ def handle_object_detection(req):
 		print e
 
 	# Since cv2 images are numpy NDarrays, it can simply be passed as one
-	cv_image = detect(cv_image, detection_graph, category_index, tf_session);
+	(cv_image, detected_object_list) = detect(cv_image, detection_graph, category_index, tf_session);
 
 	# Convert the image with detected objects back into a ROS message
 	result_msg = bridge.cv2_to_imgmsg(cv_image, encoding="passthrough")
