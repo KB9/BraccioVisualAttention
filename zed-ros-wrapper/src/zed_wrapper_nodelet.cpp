@@ -66,6 +66,10 @@
 
 #include <sl/Camera.hpp>
 
+// SPATIAL_MAPPING
+#include "zed_spatial_mapper.hpp"
+#include "zed_wrapper/Mesh.h"
+
 using namespace std;
 
 namespace zed_wrapper {
@@ -87,6 +91,7 @@ namespace zed_wrapper {
         ros::Publisher pub_right_cam_info;
         ros::Publisher pub_depth_cam_info;
         ros::Publisher pub_odom;
+        ros::Publisher pub_mesh;
 
         // tf
         tf2_ros::TransformBroadcaster transform_odom_broadcaster;
@@ -120,7 +125,7 @@ namespace zed_wrapper {
 
         // zed object
         sl::InitParameters param;
-        std::unique_ptr<sl::Camera> zed;
+        std::shared_ptr<sl::Camera> zed;
 
         // flags
         int confidence;
@@ -132,6 +137,9 @@ namespace zed_wrapper {
         sl::Mat cloud;
         string point_cloud_frame_id = "";
         ros::Time point_cloud_time;
+
+        // SPATIAL_MAPPING
+        std::unique_ptr<ZedSpatialMapper> spatial_mapper = nullptr;
 
         /* \brief Convert an sl:Mat to a cv::Mat
          * \param mat : the sl::Mat to convert
@@ -311,6 +319,10 @@ namespace zed_wrapper {
             output.is_bigendian = false;
             output.is_dense = false;
             pub_cloud.publish(output);
+        }
+
+        void publishMesh(ros::Publisher &pub_mesh) {
+            spatial_mapper->publish(pub_mesh);
         }
 
         /* \brief Publish the informations of a camera with a ros Publisher
@@ -615,6 +627,10 @@ namespace zed_wrapper {
                         publishTrackedFrame(base_transform, transform_odom_broadcaster, base_frame_id, t); //publish the tracked Frame
                     }
 
+                    // SPATIAL_MAPPING
+                    spatial_mapper->update();
+                    publishMesh(pub_mesh);
+
                     loop_rate.sleep();
                 } else {
                     // Publish odometry tf only if enabled
@@ -704,6 +720,9 @@ namespace zed_wrapper {
 
             string odometry_topic = "odom";
 
+            // SPATIAL_MAPPING
+            string mesh_topic = "mesh";
+
             nh_ns.getParam("rgb_topic", rgb_topic);
             nh_ns.getParam("rgb_raw_topic", rgb_raw_topic);
             nh_ns.getParam("rgb_cam_info_topic", rgb_cam_info_topic);
@@ -731,7 +750,9 @@ namespace zed_wrapper {
             tf_listener.reset( new tf2_ros::TransformListener(*tfBuffer) );
 
             // Create the ZED object
-            zed.reset(new sl::Camera());
+            // zed.reset(new sl::Camera());
+            zed = std::make_shared<sl::Camera>();
+            spatial_mapper = std::make_unique<ZedSpatialMapper>(zed);
             // Initialize tf2 transformation
             base_transform.setIdentity();
 
@@ -802,6 +823,10 @@ namespace zed_wrapper {
             //Odometry publisher
             pub_odom = nh.advertise<nav_msgs::Odometry>(odometry_topic, 1);
             NODELET_INFO_STREAM("Advertized on topic " << odometry_topic);
+
+            // SPATIAL_MAPPING: Mesh publisher
+            pub_mesh = nh.advertise<zed_wrapper::Mesh>(mesh_topic, 1);
+            NODELET_INFO_STREAM("Advertized on topic " << mesh_topic);
 
             device_poll_thread = boost::shared_ptr<boost::thread>
                     (new boost::thread(boost::bind(&ZEDWrapperNodelet::device_poll, this)));

@@ -48,6 +48,7 @@ find_package(catkin COMPONENTS
   pcl_conversions
   nodelet
   tf2_geometry_msgs
+  message_generation
 )
 
 checkPackage("image_transport" "")
@@ -64,6 +65,11 @@ generate_dynamic_reconfigure_options(
   cfg/Zed.cfg
 )
 
+# Add detected object msg file
+add_message_files(FILES Normal.msg Triangle.msg UV.msg Vertex.msg Chunk.msg Mesh.msg)
+
+generate_messages(DEPENDENCIES std_msgs sensor_msgs)
+
 catkin_package(
   CATKIN_DEPENDS
     roscpp
@@ -75,6 +81,7 @@ catkin_package(
     tf2_ros
     tf2_geometry_msgs
     pcl_conversions
+    message_runtime
 )
 ###############################################################################
 # INCLUDES
@@ -105,7 +112,7 @@ if(NOT DEFINED CUDA_NPP_LIBRARIES_ZED)
 endif()
 
 
-add_definitions(-std=c++11)
+add_definitions(-std=c++14)
 list(REMOVE_ITEM PCL_LIBRARIES "vtkproj4") ## if using from pcl package (pcl/vtk bug)
 set(LINK_LIBRARIES
   ${catkin_LIBRARIES}
@@ -118,7 +125,7 @@ add_library(ZEDWrapper src/zed_wrapper_nodelet.cpp)
 target_link_libraries(ZEDWrapper ${LINK_LIBRARIES})
 add_dependencies(ZEDWrapper ${PROJECT_NAME}_gencfg)
 
-add_executable(zed_wrapper_node src/zed_wrapper_node.cpp)
+add_executable(zed_wrapper_node src/zed_wrapper_node.cpp src/zed_spatial_mapper.cpp)
 target_link_libraries(zed_wrapper_node ZEDWrapper ${LINK_LIBRARIES})
 add_dependencies(zed_wrapper_node ${PROJECT_NAME}_gencfg)
 
