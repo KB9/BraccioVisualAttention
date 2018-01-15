@@ -506,7 +506,7 @@ namespace zed_wrapper {
                                 std::this_thread::sleep_for(std::chrono::milliseconds(2000));
                             }
                             tracking_activated = false;
-                            if (depth_stabilization || odom_SubNumber > 0) { //Start the tracking
+                            if (depth_stabilization || odom_SubNumber > 0 || mesh_SubNumber > 0) { //Start the tracking
                                 if (odometry_DB != "" && !file_exist(odometry_DB)) {
                                     odometry_DB = "";
                                     NODELET_WARN("odometry_DB path doesn't exist or is unreachable.");
