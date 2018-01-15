@@ -42,6 +42,7 @@
 #include "tf_object_detection/DetectedObject.h"
 
 #include "zed_wrapper/Mesh.h"
+#include "opencv2/calib3d.hpp"
 
 Braccio braccio;
 sensor_msgs::PointCloud2Ptr pcl_msg = nullptr;
@@ -51,6 +52,9 @@ GaussianMap gaussian_map;
 std::unique_ptr<GazeVisualizer> visualizer = nullptr;
 
 ros::ServiceClient client;
+
+// TESTING: Display of spatial mesh vertices
+std::vector<cv::Point3f> mesh_points;
 
 double calculateSaliencyMean(const std::vector<SalientPoint>& points)
 {
@@ -77,6 +81,25 @@ void imageCallback(const sensor_msgs::Image &img_msg)
 		visualizer = std::make_unique<GazeVisualizer>(img_msg);
 	else
 		visualizer->update(img_msg);
+
+	// TESTING: Display of spatial mesh vertices
+	std::vector<cv::Point2f> projectedPoints;
+	if (!mesh_points.empty())
+	{
+		cv::projectPoints(mesh_points,
+		                  cv::Mat::zeros(3,1,CV_32F),
+		                  cv::Mat::zeros(3,1,CV_32F),
+		                  cv::Mat::eye(3,3,CV_32F),
+		                  cv::Mat::zeros(5,1,CV_32F),
+		                  projectedPoints);
+		for (auto &point : projectedPoints)
+		{
+			// THIS GIVES A HORIZONTALLY AND VERTICALLY FLIPPED MESH
+			// cv::circle(visualizer->image, {(point.x + 0.5f) * 1280.0f, (point.y + 0.5f) * 720.0f}, 5, {0,255,0,255}, 1);
+			// THIS IS THE FLIPPED VERSION
+			cv::circle(visualizer->getImage(), {-(point.x - 0.5f) * 1280.0f, -(point.y - 0.5f) * 720.0f}, 5, {0,255,0,255}, 1);
+		}
+	}
 
 	// Clear all existing salient point
 	salient_points.clear();
@@ -161,9 +184,19 @@ void positionCallback(const nav_msgs::Odometry::ConstPtr& odom_msg)
 		pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w);
 }
 
+// TESTING: Display of spatial mesh vertices
 void meshCallback(const zed_wrapper::Mesh& mesh_msg)
 {
 	ROS_INFO("Received mesh!");
+
+	mesh_points.clear();
+	for (auto &chunk : mesh_msg.chunks)
+	{
+		for (auto &pv : chunk.proj_vertices)
+		{
+			mesh_points.emplace_back(pv.x, pv.y, pv.z);
+		}
+	}
 }
 
 pcl::PointXYZRGB getPCLPoint(pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud,
@@ -354,6 +387,7 @@ int main(int argc, char **argv)
 	// braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
 	// braccio.lookAt(5.0f, 5.0f, 20.0f);
 
+	// TESTING: Display of spatial mesh vertices
 	ros::Subscriber mesh_sub;
 	mesh_sub = node_handle.subscribe("/zed/mesh", 1, meshCallback);
 
