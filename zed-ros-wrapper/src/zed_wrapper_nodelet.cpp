@@ -440,7 +440,6 @@ namespace zed_wrapper {
             sl::TrackingParameters trackParams;
             trackParams.area_file_path = odometry_DB.c_str();
 
-
             sl::Mat leftZEDMat, rightZEDMat, depthZEDMat;
             // Main loop
             while (nh_ns.ok()) {
@@ -454,25 +453,30 @@ namespace zed_wrapper {
                 int depth_SubNumber = pub_depth.getNumSubscribers();
                 int cloud_SubNumber = pub_cloud.getNumSubscribers();
                 int odom_SubNumber = pub_odom.getNumSubscribers();
-                bool runLoop = (rgb_SubNumber + rgb_raw_SubNumber + left_SubNumber + left_raw_SubNumber + right_SubNumber + right_raw_SubNumber + depth_SubNumber + cloud_SubNumber + odom_SubNumber) > 0;
+                // SPATIAL_MAPPING
+                int mesh_SubNumber = pub_mesh.getNumSubscribers();
+                bool runLoop = (rgb_SubNumber + rgb_raw_SubNumber + left_SubNumber + left_raw_SubNumber + right_SubNumber + right_raw_SubNumber + depth_SubNumber + cloud_SubNumber + odom_SubNumber + mesh_SubNumber) > 0;
 
                 runParams.enable_point_cloud = false;
                 if (cloud_SubNumber > 0)
                     runParams.enable_point_cloud = true;
                 // Run the loop only if there is some subscribers
                 if (runLoop) {
-                    if ( (depth_stabilization || odom_SubNumber > 0) && !tracking_activated) { //Start the tracking
+                    if ( (depth_stabilization || odom_SubNumber > 0 || mesh_SubNumber > 0) && !tracking_activated) { //Start the tracking
                         if (odometry_DB != "" && !file_exist(odometry_DB)) {
                             odometry_DB = "";
                             NODELET_WARN("odometry_DB path doesn't exist or is unreachable.");
                         }
                         zed->enableTracking(trackParams);
+                        // SPATIAL_MAPPING
+                        spatial_mapper->start();
                         tracking_activated = true;
-                    } else if (!depth_stabilization && odom_SubNumber == 0 && tracking_activated) { //Stop the tracking
+                    } else if (!depth_stabilization && odom_SubNumber == 0 && mesh_SubNumber == 0 && tracking_activated) { //Stop the tracking
                         zed->disableTracking();
+                        // SPATIAL_MAPPING
                         tracking_activated = false;
                     }
-                    computeDepth = (depth_SubNumber + cloud_SubNumber + odom_SubNumber) > 0; // Detect if one of the subscriber need to have the depth information
+                    computeDepth = (depth_SubNumber + cloud_SubNumber + odom_SubNumber + mesh_SubNumber) > 0; // Detect if one of the subscriber need to have the depth information
                     ros::Time t = ros::Time::now(); // Get current time
 
                     grabbing = true;
@@ -508,6 +512,9 @@ namespace zed_wrapper {
                                     NODELET_WARN("odometry_DB path doesn't exist or is unreachable.");
                                 }
                                 zed->enableTracking(trackParams);
+                                // SPATIAL_MAPPING
+                                spatial_mapper = std::make_unique<ZedSpatialMapper>(zed);
+                                spatial_mapper->start();
                                 tracking_activated = true;
                             }
                         }
@@ -628,8 +635,11 @@ namespace zed_wrapper {
                     }
 
                     // SPATIAL_MAPPING
-                    spatial_mapper->update();
-                    publishMesh(pub_mesh);
+                    if (mesh_SubNumber > 0)
+                    {
+                        spatial_mapper->update();
+                        publishMesh(pub_mesh);
+                    }
 
                     loop_rate.sleep();
                 } else {
@@ -827,8 +837,6 @@ namespace zed_wrapper {
             // SPATIAL_MAPPING: Mesh publisher
             pub_mesh = nh.advertise<zed_wrapper::Mesh>(mesh_topic, 1);
             NODELET_INFO_STREAM("Advertized on topic " << mesh_topic);
-
-            spatial_mapper->start();
 
             device_poll_thread = boost::shared_ptr<boost::thread>
                     (new boost::thread(boost::bind(&ZEDWrapperNodelet::device_poll, this)));

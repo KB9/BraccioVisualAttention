@@ -37,9 +37,8 @@ void ZedSpatialMapper::start()
     mesh_msg.normals.clear();
     mesh_msg.uv.clear();
 
-    // Enable positional tracking before starting spatial mapping
-    zed->enableTracking();
-    // Enable spatial mapping
+    // Positional tracking has already been enabled at this point, so enable
+    // spatial mapping
     zed->enableSpatialMapping(spatial_mapping_params);
 
     // Start a timer, we retrieve the mesh every XXms.
@@ -64,23 +63,23 @@ void ZedSpatialMapper::save()
     // Extract the whole mesh
     sl::Mesh wholeMesh;
     zed->extractWholeMesh(wholeMesh);
-    std::cout << ">> Mesh has been extracted..." << std::endl;
+    ROS_INFO("Mesh has been extracted...");
 
     // Filter the extracted mesh
     wholeMesh.filter(filter_params, USE_CHUNKS);
-    std::cout << ">> Mesh has been filtered..." << std::endl;
+    ROS_INFO("Mesh has been filtered...");
 
     // If textures have been saved during spatial mapping, apply them to the mesh
     if (spatial_mapping_params.save_texture) {
         wholeMesh.applyTexture(sl::MESH_TEXTURE_RGB);
-        std::cout << ">> Mesh has been textured..." << std::endl;
+        ROS_INFO("Mesh has been textured...");
     }
 
-    //Save as an OBJ file
+    // Save as an OBJ file
     std::string saveName = "./mesh_gen.obj";
     bool t = wholeMesh.save(saveName.c_str());
-    if (t) std::cout << ">> Mesh has been saved under " << saveName << std::endl;
-    else std::cout << ">> Failed to save the mesh under  " << saveName << std::endl;
+    if (t) ROS_INFO("Mesh has been saved under %s", saveName.c_str());
+    else ROS_WARN("Failed to save the mesh under %s", saveName.c_str());
 
 //     // Update the displayed Mesh
 // #if USE_CHUNKS
@@ -96,32 +95,29 @@ void ZedSpatialMapper::save()
 // Update the mesh and draw image and wireframe using OpenGL
 void ZedSpatialMapper::update()
 {
-	if (zed->grab() == sl::SUCCESS)
-	{
-        // Retrieve image in GPU memory
-        zed->retrieveImage(left_image, sl::VIEW_LEFT, sl::MEM_GPU);
+    // Retrieve image in GPU memory
+    zed->retrieveImage(left_image, sl::VIEW_LEFT, sl::MEM_GPU);
 
-        // Update pose data (used for projection of the mesh over the current image)
-        tracking_state = zed->getPosition(pose);
+    // Update pose data (used for projection of the mesh over the current image)
+    tracking_state = zed->getPosition(pose);
 
-        if (is_mapping)
+    if (is_mapping)
+    {
+        // Compute elapse time since the last call of sl::Camera::requestMeshAsync()
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t_last).count();
+        // Ask for a mesh update if 500ms have spend since last request
+        if (duration > 500)
         {
-            // Compute elapse time since the last call of sl::Camera::requestMeshAsync()
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t_last).count();
-            // Ask for a mesh update if 500ms have spend since last request
-            if (duration > 500)
-            {
-                zed->requestMeshAsync();
-                t_last = std::chrono::high_resolution_clock::now();
-            }
+            zed->requestMeshAsync();
+            t_last = std::chrono::high_resolution_clock::now();
+        }
 
-            if (zed->getMeshRequestStatusAsync() == sl::SUCCESS)
+        if (zed->getMeshRequestStatusAsync() == sl::SUCCESS)
+        {
+            // Get the current mesh generated and send it to opengl
+            if (zed->retrieveMeshAsync(mesh) == sl::SUCCESS)
             {
-                // Get the current mesh generated and send it to opengl
-                if (zed->retrieveMeshAsync(mesh) == sl::SUCCESS)
-                {
-                	updateMsg();
-                }
+            	updateMsg();
             }
         }
     }
