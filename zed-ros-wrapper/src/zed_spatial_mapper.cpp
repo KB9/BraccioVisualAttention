@@ -12,25 +12,6 @@
 // Define if you want to use the mesh as a set of chunks or as a global entity.
 #define USE_CHUNKS 1
 
-cv::Mat slMatToCVMat(const sl::Mat &input)
-{
-    int cv_type = -1;
-    switch (input.getDataType())
-    {
-        case sl::MAT_TYPE_32F_C1: cv_type = CV_32FC1; break;
-        case sl::MAT_TYPE_32F_C2: cv_type = CV_32FC2; break;
-        case sl::MAT_TYPE_32F_C3: cv_type = CV_32FC3; break;
-        case sl::MAT_TYPE_32F_C4: cv_type = CV_32FC4; break;
-        case sl::MAT_TYPE_8U_C1: cv_type = CV_8UC1; break;
-        case sl::MAT_TYPE_8U_C2: cv_type = CV_8UC2; break;
-        case sl::MAT_TYPE_8U_C3: cv_type = CV_8UC3; break;
-        case sl::MAT_TYPE_8U_C4: cv_type = CV_8UC4; break;
-        default: break;
-    }
-
-    return cv::Mat(input.getHeight(), input.getWidth(), cv_type, input.getPtr<sl::uchar1>(sl::MEM_GPU));
-}
-
 ZedSpatialMapper::ZedSpatialMapper(std::shared_ptr<sl::Camera> zed)
 {
 	this->zed = zed;
@@ -43,6 +24,8 @@ ZedSpatialMapper::ZedSpatialMapper(std::shared_ptr<sl::Camera> zed)
     spatial_mapping_params.use_chunk_only = USE_CHUNKS; // If we use chunks we do not need to keep the mesh consistent
 
     filter_params.set(sl::MeshFilterParameters::MESH_FILTER_LOW);
+
+    start();
 }
 
 // Start the spatial mapping process
@@ -154,6 +137,7 @@ void ZedSpatialMapper::publish(ros::Publisher &pub_mesh)
 void ZedSpatialMapper::updateMsg()
 {
 #if USE_CHUNKS
+	mesh_msg.chunks.clear();
 	for (auto &chunk : mesh.chunks)
 	{
 		if (chunk.has_been_updated)
@@ -194,6 +178,10 @@ void ZedSpatialMapper::updateMsg()
 		}
 	}
 #else
+	mesh_msg.vertices.clear();
+	mesh_msg.triangles.clear();
+	mesh_msg.normals.clear();
+	mesh_msg.uv.clear();
 	for (auto &vertex : mesh.vertices)
 	{
 		zed_wrapper::Vertex vertex_msg;
