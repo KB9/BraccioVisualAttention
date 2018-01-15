@@ -828,6 +828,8 @@ namespace zed_wrapper {
             pub_mesh = nh.advertise<zed_wrapper::Mesh>(mesh_topic, 1);
             NODELET_INFO_STREAM("Advertized on topic " << mesh_topic);
 
+            spatial_mapper->start();
+
             device_poll_thread = boost::shared_ptr<boost::thread>
                     (new boost::thread(boost::bind(&ZEDWrapperNodelet::device_poll, this)));
         }

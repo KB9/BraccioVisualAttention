@@ -24,8 +24,6 @@ ZedSpatialMapper::ZedSpatialMapper(std::shared_ptr<sl::Camera> zed)
     spatial_mapping_params.use_chunk_only = USE_CHUNKS; // If we use chunks we do not need to keep the mesh consistent
 
     filter_params.set(sl::MeshFilterParameters::MESH_FILTER_LOW);
-
-    start();
 }
 
 // Start the spatial mapping process
