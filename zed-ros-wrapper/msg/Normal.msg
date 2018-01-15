@@ -1,1 +1,3 @@
-float32[3] normal
+float32 x
+float32 y
+float32 z

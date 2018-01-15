@@ -41,6 +41,8 @@
 #include "tf_object_detection/ObjectDetection.h"
 #include "tf_object_detection/DetectedObject.h"
 
+#include "zed_wrapper/Mesh.h"
+
 Braccio braccio;
 sensor_msgs::PointCloud2Ptr pcl_msg = nullptr;
 std::vector<SalientPoint> salient_points;
@@ -157,6 +159,11 @@ void positionCallback(const nav_msgs::Odometry::ConstPtr& odom_msg)
 	ROS_INFO("ODOMETRY:");
 	ROS_INFO("pos: (%.3f,%.3f,%.3f) orient: (%.3f,%.3f,%.3f,%.3f)",
 		pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w);
+}
+
+void meshCallback(const zed_wrapper::Mesh& mesh_msg)
+{
+	ROS_INFO("Received mesh!");
 }
 
 pcl::PointXYZRGB getPCLPoint(pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud,
@@ -346,6 +353,9 @@ int main(int argc, char **argv)
 	// DISABLED: For object detection, Braccio functionality disabled
 	// braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
 	// braccio.lookAt(5.0f, 5.0f, 20.0f);
+
+	ros::Subscriber mesh_sub;
+	mesh_sub = node_handle.subscribe("/zed/mesh", 1, meshCallback);
 
 	// Set up this node as a client of the TensorFlow object_detection service
 	client = node_handle.serviceClient<tf_object_detection::ObjectDetection>("object_detection");

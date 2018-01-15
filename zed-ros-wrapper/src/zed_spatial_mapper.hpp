@@ -8,6 +8,8 @@
 
 #include <sl/Camera.hpp>
 
+#include "zed_wrapper/Mesh.h"
+
 class ZedSpatialMapper
 {
 public:
@@ -34,6 +36,10 @@ private:
 	sl::MeshFilterParameters filter_params;
 
 	std::chrono::high_resolution_clock::time_point t_last;
+
+	zed_wrapper::Mesh mesh_msg;
+
+	void updateMsg();
 };
 
 #endif // _ZED_SPATIAL_MAPPER_H_

@@ -75,7 +75,7 @@ catkin_package(
     roscpp
     rosconsole
     sensor_msgs
-    opencv
+    #opencv
     image_transport
     dynamic_reconfigure
     tf2_ros

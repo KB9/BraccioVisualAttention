@@ -1,1 +1,2 @@
-float32[2] uv
+float32 u
+float32 v

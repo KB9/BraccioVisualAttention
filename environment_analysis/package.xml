@@ -52,6 +52,9 @@
   <build_depend>tf_object_detection</build_depend>
   <build_export_depend>tf_object_detection</build_export_depend>
   <exec_depend>tf_object_detection</exec_depend>
+  <build_depend>zed_wrapper</build_depend>
+  <build_export_depend>zed_wrapper</build_export_depend>
+  <exec_depend>zed_wrapper</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

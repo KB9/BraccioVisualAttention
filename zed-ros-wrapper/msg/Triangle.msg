@@ -1,1 +1,3 @@
-uint32[3] triangle
+uint32 x
+uint32 y
+uint32 z

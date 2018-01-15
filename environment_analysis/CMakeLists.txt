@@ -5,9 +5,9 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -pedantic")
 
 ## Find catkin and any catkin packages
-find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs cv_bridge tf_object_detection)
+find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs cv_bridge tf_object_detection zed_wrapper)
 
-find_package(OpenCV)
+find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
 

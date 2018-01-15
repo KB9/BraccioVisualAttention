@@ -1,7 +1,35 @@
 #include "zed_spatial_mapper.hpp"
 
+#include "cv_bridge/cv_bridge.h"
+#include "opencv2/core.hpp"
+
+#include "zed_wrapper/Chunk.h"
+#include "zed_wrapper/Normal.h"
+#include "zed_wrapper/Triangle.h"
+#include "zed_wrapper/UV.h"
+#include "zed_wrapper/Vertex.h"
+
 // Define if you want to use the mesh as a set of chunks or as a global entity.
 #define USE_CHUNKS 1
+
+cv::Mat slMatToCVMat(const sl::Mat &input)
+{
+    int cv_type = -1;
+    switch (input.getDataType())
+    {
+        case sl::MAT_TYPE_32F_C1: cv_type = CV_32FC1; break;
+        case sl::MAT_TYPE_32F_C2: cv_type = CV_32FC2; break;
+        case sl::MAT_TYPE_32F_C3: cv_type = CV_32FC3; break;
+        case sl::MAT_TYPE_32F_C4: cv_type = CV_32FC4; break;
+        case sl::MAT_TYPE_8U_C1: cv_type = CV_8UC1; break;
+        case sl::MAT_TYPE_8U_C2: cv_type = CV_8UC2; break;
+        case sl::MAT_TYPE_8U_C3: cv_type = CV_8UC3; break;
+        case sl::MAT_TYPE_8U_C4: cv_type = CV_8UC4; break;
+        default: break;
+    }
+
+    return cv::Mat(input.getHeight(), input.getWidth(), cv_type, input.getPtr<sl::uchar1>(sl::MEM_GPU));
+}
 
 ZedSpatialMapper::ZedSpatialMapper(std::shared_ptr<sl::Camera> zed)
 {
@@ -22,13 +50,11 @@ void ZedSpatialMapper::start()
 {
     // clear previously used objects
     mesh.clear();
-    // mesh_object.clear();
-
-#if !USE_CHUNKS
-    // Create only one object that will contain the full mesh.
-    // Otherwise, different MeshObject will be created for each chunk when needed
-    // mesh_object.emplace_back();
-#endif
+    mesh_msg.chunks.clear();
+    mesh_msg.vertices.clear();
+    mesh_msg.triangles.clear();
+    mesh_msg.normals.clear();
+    mesh_msg.uv.clear();
 
     // Enable positional tracking before starting spatial mapping
     zed->enableTracking();
@@ -113,18 +139,7 @@ void ZedSpatialMapper::update()
                 // Get the current mesh generated and send it to opengl
                 if (zed->retrieveMeshAsync(mesh) == sl::SUCCESS)
                 {
-// #if USE_CHUNKS
-//                     for (int c = 0; c < mesh.chunks.size(); c++)
-//                     {
-//                         // If the chunk does not exist in the rendering process -> add it in the rendering list
-//                         if (mesh_object.size() < mesh.chunks.size()) mesh_object.emplace_back();
-//                         // If the chunck has been updated by the spatial mapping, update it for rendering
-//                         if (mesh.chunks[c].has_been_updated)
-//                             mesh_object[c].updateMesh(mesh.chunks[c].vertices, mesh.chunks[c].triangles);
-//                     }
-// #else
-//                     mesh_object[0].updateMesh(mesh.vertices, mesh.triangles);
-// #endif
+                	updateMsg();
                 }
             }
         }
@@ -133,5 +148,82 @@ void ZedSpatialMapper::update()
 
 void ZedSpatialMapper::publish(ros::Publisher &pub_mesh)
 {
-	// Not yet implemented
+	pub_mesh.publish(mesh_msg);
+}
+
+void ZedSpatialMapper::updateMsg()
+{
+#if USE_CHUNKS
+	for (auto &chunk : mesh.chunks)
+	{
+		if (chunk.has_been_updated)
+		{
+			zed_wrapper::Chunk chunk_msg;
+			for (auto &vertex : chunk.vertices)
+			{
+				zed_wrapper::Vertex vertex_msg;
+				vertex_msg.x = vertex[0];
+				vertex_msg.y = vertex[1];
+				vertex_msg.z = vertex[2];
+				chunk_msg.vertices.push_back(vertex_msg);
+			}
+			for (auto &triangle : chunk.triangles)
+			{
+				zed_wrapper::Triangle triangle_msg;
+				triangle_msg.x = triangle[0];
+				triangle_msg.y = triangle[1];
+				triangle_msg.z = triangle[2];
+				chunk_msg.triangles.push_back(triangle_msg);
+			}
+			for (auto &normal : chunk.normals)
+			{
+				zed_wrapper::Normal normal_msg;
+				normal_msg.x = normal[0];
+				normal_msg.y = normal[1];
+				normal_msg.z = normal[2];
+				chunk_msg.normals.push_back(normal_msg);
+			}
+			for (auto &uv : chunk.uv)
+			{
+				zed_wrapper::UV uv_msg;
+				uv_msg.u = uv[0];
+				uv_msg.v = uv[1];
+				chunk_msg.uv.push_back(uv_msg);
+			}
+			mesh_msg.chunks.push_back(chunk_msg);
+		}
+	}
+#else
+	for (auto &vertex : mesh.vertices)
+	{
+		zed_wrapper::Vertex vertex_msg;
+		vertex_msg.x = vertex[0];
+		vertex_msg.y = vertex[1];
+		vertex_msg.z = vertex[2];
+		mesh_msg.vertices.push_back(vertex_msg);
+	}
+	for (auto &triangle : mesh.triangles)
+	{
+		zed_wrapper::Triangle triangle_msg;
+		triangle_msg.x = triangle[0];
+		triangle_msg.y = triangle[1];
+		triangle_msg.z = triangle[2];
+		mesh_msg.triangles.push_back(triangle_msg);
+	}
+	for (auto &normal : mesh.normals)
+	{
+		zed_wrapper::Normal normal_msg;
+		normal_msg.x = normal[0];
+		normal_msg.y = normal[1];
+		normal_msg.z = normal[2];
+		mesh_msg.normals.push_back(normal_msg);
+	}
+	for (auto &uv : mesh.uv)
+	{
+		zed_wrapper::UV uv_msg;
+		uv_msg.u = uv[0];
+		uv_msg.v = uv[1];
+		mesh_msg.uv.push_back(uv_msg);
+	}
+#endif
 }
