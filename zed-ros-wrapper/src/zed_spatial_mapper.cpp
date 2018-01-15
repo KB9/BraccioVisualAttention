@@ -9,9 +9,6 @@
 #include "zed_wrapper/UV.h"
 #include "zed_wrapper/Vertex.h"
 
-// Define if you want to use the mesh as a set of chunks or as a global entity.
-#define USE_CHUNKS 1
-
 ZedSpatialMapper::ZedSpatialMapper(std::shared_ptr<sl::Camera> zed)
 {
 	this->zed = zed;
@@ -21,7 +18,7 @@ ZedSpatialMapper::ZedSpatialMapper(std::shared_ptr<sl::Camera> zed)
     spatial_mapping_params.resolution_meter = sl::SpatialMappingParameters::get(sl::SpatialMappingParameters::MAPPING_RESOLUTION_LOW);
     spatial_mapping_params.save_texture = true;
     spatial_mapping_params.max_memory_usage = 512;
-    spatial_mapping_params.use_chunk_only = USE_CHUNKS; // If we use chunks we do not need to keep the mesh consistent
+    spatial_mapping_params.use_chunk_only = true; // If we use chunks we do not need to keep the mesh consistent
 
     filter_params.set(sl::MeshFilterParameters::MESH_FILTER_LOW);
 }
@@ -32,10 +29,6 @@ void ZedSpatialMapper::start()
     // clear previously used objects
     mesh.clear();
     mesh_msg.chunks.clear();
-    mesh_msg.vertices.clear();
-    mesh_msg.triangles.clear();
-    mesh_msg.normals.clear();
-    mesh_msg.uv.clear();
 
     // Positional tracking has already been enabled at this point, so enable
     // spatial mapping
@@ -66,7 +59,7 @@ void ZedSpatialMapper::save()
     ROS_INFO("Mesh has been extracted...");
 
     // Filter the extracted mesh
-    wholeMesh.filter(filter_params, USE_CHUNKS);
+    wholeMesh.filter(filter_params, true);
     ROS_INFO("Mesh has been filtered...");
 
     // If textures have been saved during spatial mapping, apply them to the mesh
@@ -80,16 +73,6 @@ void ZedSpatialMapper::save()
     bool t = wholeMesh.save(saveName.c_str());
     if (t) ROS_INFO("Mesh has been saved under %s", saveName.c_str());
     else ROS_WARN("Failed to save the mesh under %s", saveName.c_str());
-
-//     // Update the displayed Mesh
-// #if USE_CHUNKS
-//     mesh_object.clear();
-//     mesh_object.resize(wholeMesh.chunks.size());
-//     for (int c = 0; c < wholeMesh.chunks.size(); c++)
-//         mesh_object[c].updateMesh(wholeMesh.chunks[c].vertices, wholeMesh.chunks[c].triangles);
-// #else
-//     mesh_object[0].updateMesh(wholeMesh.vertices, wholeMesh.triangles);
-// #endif
 }
 
 // Update the mesh and draw image and wireframe using OpenGL
@@ -125,19 +108,32 @@ void ZedSpatialMapper::update()
 
 void ZedSpatialMapper::publish(ros::Publisher &pub_mesh)
 {
+	// Get the current projection vertices for the mesh vertices
+	for (auto &chunk : mesh_msg.chunks)
+	{
+		chunk.proj_vertices.clear();
+		for (auto &vertex : chunk.vertices)
+		{
+			chunk.proj_vertices.push_back(toProjectedVertex(vertex.x, vertex.y, vertex.z));
+		}
+	}
+
 	pub_mesh.publish(mesh_msg);
 }
 
 void ZedSpatialMapper::updateMsg()
 {
-#if USE_CHUNKS
-	mesh_msg.chunks.clear();
-	for (auto &chunk : mesh.chunks)
+	for (int c = 0; c < mesh.chunks.size(); c++)
 	{
-		if (chunk.has_been_updated)
+		// If the mesh msg is not as large as the real mesh, increase it
+		if (mesh_msg.chunks.size() < mesh.chunks.size()) mesh_msg.chunks.emplace_back();
+
+		// If this mesh chunk has been updated since the last update to the msg
+		if (mesh.chunks[c].has_been_updated)
 		{
 			zed_wrapper::Chunk chunk_msg;
-			for (auto &vertex : chunk.vertices)
+			// Get the new vertices
+			for (auto &vertex : mesh.chunks[c].vertices)
 			{
 				zed_wrapper::Vertex vertex_msg;
 				vertex_msg.x = vertex[0];
@@ -145,7 +141,8 @@ void ZedSpatialMapper::updateMsg()
 				vertex_msg.z = vertex[2];
 				chunk_msg.vertices.push_back(vertex_msg);
 			}
-			for (auto &triangle : chunk.triangles)
+			// Get the new triangles
+			for (auto &triangle : mesh.chunks[c].triangles)
 			{
 				zed_wrapper::Triangle triangle_msg;
 				triangle_msg.x = triangle[0];
@@ -153,7 +150,8 @@ void ZedSpatialMapper::updateMsg()
 				triangle_msg.z = triangle[2];
 				chunk_msg.triangles.push_back(triangle_msg);
 			}
-			for (auto &normal : chunk.normals)
+			// Get the new normals
+			for (auto &normal : mesh.chunks[c].normals)
 			{
 				zed_wrapper::Normal normal_msg;
 				normal_msg.x = normal[0];
@@ -161,51 +159,45 @@ void ZedSpatialMapper::updateMsg()
 				normal_msg.z = normal[2];
 				chunk_msg.normals.push_back(normal_msg);
 			}
-			for (auto &uv : chunk.uv)
+			// Get the new UVs
+			for (auto &uv : mesh.chunks[c].uv)
 			{
 				zed_wrapper::UV uv_msg;
 				uv_msg.u = uv[0];
 				uv_msg.v = uv[1];
 				chunk_msg.uv.push_back(uv_msg);
 			}
-			mesh_msg.chunks.push_back(chunk_msg);
+			// Insert the updated chunk into the same position as the sl::Mesh
+			mesh_msg.chunks[c] = chunk_msg;
 		}
 	}
-#else
-	mesh_msg.vertices.clear();
-	mesh_msg.triangles.clear();
-	mesh_msg.normals.clear();
-	mesh_msg.uv.clear();
-	for (auto &vertex : mesh.vertices)
-	{
-		zed_wrapper::Vertex vertex_msg;
-		vertex_msg.x = vertex[0];
-		vertex_msg.y = vertex[1];
-		vertex_msg.z = vertex[2];
-		mesh_msg.vertices.push_back(vertex_msg);
-	}
-	for (auto &triangle : mesh.triangles)
-	{
-		zed_wrapper::Triangle triangle_msg;
-		triangle_msg.x = triangle[0];
-		triangle_msg.y = triangle[1];
-		triangle_msg.z = triangle[2];
-		mesh_msg.triangles.push_back(triangle_msg);
-	}
-	for (auto &normal : mesh.normals)
-	{
-		zed_wrapper::Normal normal_msg;
-		normal_msg.x = normal[0];
-		normal_msg.y = normal[1];
-		normal_msg.z = normal[2];
-		mesh_msg.normals.push_back(normal_msg);
-	}
-	for (auto &uv : mesh.uv)
-	{
-		zed_wrapper::UV uv_msg;
-		uv_msg.u = uv[0];
-		uv_msg.v = uv[1];
-		mesh_msg.uv.push_back(uv_msg);
-	}
-#endif
+}
+
+zed_wrapper::Vertex ZedSpatialMapper::toProjectedVertex(float x, float y, float z)
+{
+	zed_wrapper::Vertex result;
+	sl::Transform cameraProjection = createProjection();
+	sl::Transform project = sl::Transform::transpose(cameraProjection * sl::Transform::inverse(pose.pose_data));
+	result.x = (project(0,0) * x) + (project(0,1) * y) + (project(0,2) * z) + project(0,3);
+	result.y = (project(1,0) * x) + (project(1,1) * y) + (project(1,2) * z) + project(1,3);
+	result.z = (project(2,0) * x) + (project(2,1) * y) + (project(2,2) * z) + project(2,3);
+	return result;
+}
+
+sl::Transform ZedSpatialMapper::createProjection()
+{
+    // Create Projection Matrix for OpenGL. We will use this matrix in combination with the Pose (on REFERENCE_FRAME_WORLD) to project the mesh on the 2D Image.
+    sl::Transform cameraProjection;
+    sl::CameraParameters camLeft = zed->getCameraInformation().calibration_parameters.left_cam;
+    cameraProjection(0, 0) = 1.0f / tanf(camLeft.h_fov * M_PI / 180.f * 0.5f);
+    cameraProjection(1, 1) = 1.0f / tanf(camLeft.v_fov * M_PI / 180.f * 0.5f);
+    float znear = 0.001f;
+    float zfar = 100.f;
+    cameraProjection(2, 2) = -(zfar + znear) / (zfar - znear);
+    cameraProjection(2, 3) = -(2.f * zfar * znear) / (zfar - znear);
+    cameraProjection(3, 2) = -1.f;
+    cameraProjection(0, 2) = (camLeft.image_size.width - 2.f * camLeft.cx) / camLeft.image_size.width;
+    cameraProjection(1, 2) = (-1.f * camLeft.image_size.height + 2.f * camLeft.cy) / camLeft.image_size.height;
+    cameraProjection(3, 3) = 0.f;
+    return cameraProjection;
 }

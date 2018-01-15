@@ -40,6 +40,9 @@ private:
 	zed_wrapper::Mesh mesh_msg;
 
 	void updateMsg();
+
+	sl::Transform createProjection();
+	zed_wrapper::Vertex toProjectedVertex(float x, float y, float z);
 };
 
 #endif // _ZED_SPATIAL_MAPPER_H_
