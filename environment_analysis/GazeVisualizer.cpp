@@ -59,3 +59,8 @@ void GazeVisualizer::show()
 	cv::imshow("view", temp);
 	cv::waitKey(30);
 }
+
+cv::Mat &GazeVisualizer::getImage()
+{
+	return image;
+}

@@ -23,6 +23,9 @@ public:
 	void update(const sensor_msgs::Image &img_msg);
 	void show();
 
+	// For direct access to the image matrix
+	cv::Mat &getImage();
+
 private:
 	cv::Mat image;
 	cv::Mat gaze_target_image;
