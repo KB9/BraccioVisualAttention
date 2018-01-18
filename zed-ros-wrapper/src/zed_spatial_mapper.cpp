@@ -177,25 +177,32 @@ zed_wrapper::Vertex ZedSpatialMapper::toProjectedVertex(float x, float y, float 
 {
 	zed_wrapper::Vertex result;
 	sl::Transform cameraProjection = createProjection();
-	sl::Transform project = sl::Transform::transpose(cameraProjection * sl::Transform::inverse(pose.pose_data));
+	sl::Transform project = cameraProjection * sl::Transform::inverse(pose.pose_data);
 	result.x = (project(0,0) * x) + (project(0,1) * y) + (project(0,2) * z) + project(0,3);
 	result.y = (project(1,0) * x) + (project(1,1) * y) + (project(1,2) * z) + project(1,3);
 	result.z = (project(2,0) * x) + (project(2,1) * y) + (project(2,2) * z) + project(2,3);
+	float w = (project(3,0) * x) + (project(3,1) * y) + (project(3,2) * z) + project(3,3);
+
+	// Convert the 3D position to 2D screen positions
+	result.x = (result.x * 1280.0f) / (2.0f * w) + 640.0f;
+	result.y = (result.y * 720.0f) / (2.0f * w) + 360.0f;
+
 	return result;
 }
 
 sl::Transform ZedSpatialMapper::createProjection()
 {
-    // Create Projection Matrix for OpenGL. We will use this matrix in combination with the Pose (on REFERENCE_FRAME_WORLD) to project the mesh on the 2D Image.
+    // Create projection matrix. Use this matrix in combination with the Pose
+    // (on REFERENCE_FRAME_WORLD) to project the mesh on the 2D Image.
     sl::Transform cameraProjection;
     sl::CameraParameters camLeft = zed->getCameraInformation().calibration_parameters.left_cam;
     cameraProjection(0, 0) = 1.0f / tanf(camLeft.h_fov * M_PI / 180.f * 0.5f);
     cameraProjection(1, 1) = 1.0f / tanf(camLeft.v_fov * M_PI / 180.f * 0.5f);
     float znear = 0.001f;
     float zfar = 100.f;
-    cameraProjection(2, 2) = -(zfar + znear) / (zfar - znear);
-    cameraProjection(2, 3) = -(2.f * zfar * znear) / (zfar - znear);
-    cameraProjection(3, 2) = -1.f;
+    cameraProjection(2, 2) = (zfar + znear) / (zfar - znear);
+    cameraProjection(2, 3) = (2.f * zfar * znear) / (zfar - znear);
+    cameraProjection(3, 2) = 1.f;
     cameraProjection(0, 2) = (camLeft.image_size.width - 2.f * camLeft.cx) / camLeft.image_size.width;
     cameraProjection(1, 2) = (-1.f * camLeft.image_size.height + 2.f * camLeft.cy) / camLeft.image_size.height;
     cameraProjection(3, 3) = 0.f;
