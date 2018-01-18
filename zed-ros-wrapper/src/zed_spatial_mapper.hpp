@@ -39,9 +39,11 @@ private:
 
 	zed_wrapper::Mesh mesh_msg;
 
+	sl::Transform cameraProjection;
+
 	void updateMsg();
 
-	sl::Transform createProjection();
+	sl::Transform createCameraProjection();
 	zed_wrapper::Vertex toProjectedVertex(float x, float y, float z);
 };
 

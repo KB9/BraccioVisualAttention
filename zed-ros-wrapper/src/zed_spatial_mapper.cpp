@@ -37,6 +37,8 @@ void ZedSpatialMapper::start()
     // Start a timer, we retrieve the mesh every XXms.
     t_last = std::chrono::high_resolution_clock::now();
 
+    cameraProjection = createCameraProjection();
+
     is_mapping = true;
     ROS_INFO("Spatial mapping started...");
 }
@@ -176,7 +178,6 @@ void ZedSpatialMapper::updateMsg()
 zed_wrapper::Vertex ZedSpatialMapper::toProjectedVertex(float x, float y, float z)
 {
 	zed_wrapper::Vertex result;
-	sl::Transform cameraProjection = createProjection();
 	sl::Transform project = cameraProjection * sl::Transform::inverse(pose.pose_data);
 	result.x = (project(0,0) * x) + (project(0,1) * y) + (project(0,2) * z) + project(0,3);
 	result.y = (project(1,0) * x) + (project(1,1) * y) + (project(1,2) * z) + project(1,3);
@@ -190,21 +191,21 @@ zed_wrapper::Vertex ZedSpatialMapper::toProjectedVertex(float x, float y, float 
 	return result;
 }
 
-sl::Transform ZedSpatialMapper::createProjection()
+sl::Transform ZedSpatialMapper::createCameraProjection()
 {
     // Create projection matrix. Use this matrix in combination with the Pose
     // (on REFERENCE_FRAME_WORLD) to project the mesh on the 2D Image.
-    sl::Transform cameraProjection;
+    sl::Transform projection;
     sl::CameraParameters camLeft = zed->getCameraInformation().calibration_parameters.left_cam;
-    cameraProjection(0, 0) = 1.0f / tanf(camLeft.h_fov * M_PI / 180.f * 0.5f);
-    cameraProjection(1, 1) = 1.0f / tanf(camLeft.v_fov * M_PI / 180.f * 0.5f);
+    projection(0, 0) = 1.0f / tanf(camLeft.h_fov * M_PI / 180.f * 0.5f);
+    projection(1, 1) = 1.0f / tanf(camLeft.v_fov * M_PI / 180.f * 0.5f);
     float znear = 0.001f;
     float zfar = 100.f;
-    cameraProjection(2, 2) = (zfar + znear) / (zfar - znear);
-    cameraProjection(2, 3) = (2.f * zfar * znear) / (zfar - znear);
-    cameraProjection(3, 2) = 1.f;
-    cameraProjection(0, 2) = (camLeft.image_size.width - 2.f * camLeft.cx) / camLeft.image_size.width;
-    cameraProjection(1, 2) = (-1.f * camLeft.image_size.height + 2.f * camLeft.cy) / camLeft.image_size.height;
-    cameraProjection(3, 3) = 0.f;
-    return cameraProjection;
+    projection(2, 2) = (zfar + znear) / (zfar - znear);
+    projection(2, 3) = (2.f * zfar * znear) / (zfar - znear);
+    projection(3, 2) = 1.f;
+    projection(0, 2) = (camLeft.image_size.width - 2.f * camLeft.cx) / camLeft.image_size.width;
+    projection(1, 2) = (-1.f * camLeft.image_size.height + 2.f * camLeft.cy) / camLeft.image_size.height;
+    projection(3, 3) = 0.f;
+    return projection;
 }
