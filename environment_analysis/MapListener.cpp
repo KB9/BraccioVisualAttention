@@ -86,19 +86,6 @@ void imageCallback(const sensor_msgs::Image &img_msg)
 	std::vector<cv::Point2f> projectedPoints;
 	if (!mesh_points.empty())
 	{
-		// cv::projectPoints(mesh_points,
-		//                   cv::Mat::zeros(3,1,CV_32F),
-		//                   cv::Mat::zeros(3,1,CV_32F),
-		//                   cv::Mat::eye(3,3,CV_32F),
-		//                   cv::Mat::zeros(5,1,CV_32F),
-		//                   projectedPoints);
-		// for (auto &point : projectedPoints)
-		// {
-		// 	// THIS GIVES A HORIZONTALLY AND VERTICALLY FLIPPED MESH
-		// 	cv::circle(visualizer->getImage(), {(point.x + 0.5f) * 1280.0f, (point.y + 0.5f) * 720.0f}, 5, {0,255,0,255}, 1);
-		// 	// THIS IS THE FLIPPED VERSION
-		// 	// cv::circle(visualizer->getImage(), {-(point.x - 0.5f) * 1280.0f, -(point.y - 0.5f) * 720.0f}, 5, {0,255,0,255}, 1);
-		// }
 		for (const auto &point : mesh_points)
 		{
 			cv::circle(visualizer->getImage(), {point.x, point.y}, 5, {0,255,0,255}, 1);
