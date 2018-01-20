@@ -86,6 +86,17 @@ void GazeSolver::next(const sensor_msgs::Image &img_msg,
 	// Find the angles required to view an undermapped section of the mesh
 	Rotation rot = mesh_analyser.findLesserMappedSection();
 	ROS_INFO("Required: (%.3f,%.3f,%.3f)", rot.x, rot.y, rot.z);
+
+	/*
+	PLAN FOR SOLVER:
+	When the mapping starts, try and locate salient points and objects in the
+	current FOV. This will move the gaze accordingly, and may continue finding
+	new objects and salient points as it does. However, if either an object or
+	salient point is selected which has a high Gaussian result (even if it is
+	the lowest of all viewable salient points), the mesh will be analysed to find
+	a section which has the lowest amount of vertices. This will be repeated ad
+	finitum until the user desires to stop mapping.
+	*/
 }
 
 GazeVisualizer &GazeSolver::vis()
