@@ -81,3 +81,71 @@ void MeshProjector::clearMesh()
 {
 	mesh.clear();
 }
+
+void MeshProjector::rotatePose(float x, float y, float z)
+{
+	Eigen::MatrixXf x_transform(4,4);
+	// Rotation
+	x_transform(0,0) = 1;
+	x_transform(0,1) = 0;
+	x_transform(0,2) = 0;
+	x_transform(1,0) = 0;
+	x_transform(1,1) = cosf(x);
+	x_transform(1,2) = -sinf(x);
+	x_transform(2,0) = 0;
+	x_transform(2,1) = sinf(x);
+	x_transform(2,2) = cosf(x);
+	// Translation
+	x_transform(0,3) = 0;
+	x_transform(1,3) = 0;
+	x_transform(2,3) = 0;
+	// Constant
+	x_transform(3,0) = 0;
+	x_transform(3,1) = 0;
+	x_transform(3,2) = 0;
+	x_transform(3,3) = 1;
+
+	Eigen::MatrixXf y_transform(4,4);
+	// Rotation
+	y_transform(0,0) = cosf(y);
+	y_transform(0,1) = 0;
+	y_transform(0,2) = sinf(y);
+	y_transform(1,0) = 0;
+	y_transform(1,1) = 1;
+	y_transform(1,2) = 0;
+	y_transform(2,0) = -sinf(y);
+	y_transform(2,1) = 0;
+	y_transform(2,2) = cosf(y);
+	// Translation
+	y_transform(0,3) = 0;
+	y_transform(1,3) = 0;
+	y_transform(2,3) = 0;
+	// Constant
+	y_transform(3,0) = 0;
+	y_transform(3,1) = 0;
+	y_transform(3,2) = 0;
+	y_transform(3,3) = 1;
+
+	Eigen::MatrixXf z_transform(4,4);
+	// Rotation
+	z_transform(0,0) = cosf(z);
+	z_transform(0,1) = -sinf(z);
+	z_transform(0,2) = 0;
+	z_transform(1,0) = sinf(z);
+	z_transform(1,1) = cosf(z);
+	z_transform(1,2) = 0;
+	z_transform(2,0) = 0;
+	z_transform(2,1) = 0;
+	z_transform(2,2) = 1;
+	// Translation
+	z_transform(0,3) = 0;
+	z_transform(1,3) = 0;
+	z_transform(2,3) = 0;
+	// Constant
+	z_transform(3,0) = 0;
+	z_transform(3,1) = 0;
+	z_transform(3,2) = 0;
+	z_transform(3,3) = 1;
+
+	pose *= (x_transform * y_transform * z_transform);
+}

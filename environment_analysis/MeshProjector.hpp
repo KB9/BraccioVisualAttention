@@ -52,6 +52,8 @@ public:
 	void addVertex(float x, float y, float z);
 	void clearMesh();
 
+	void rotatePose(float x, float y, float z);
+
 private:
 	std::vector<MeshVertex3D> mesh;
 
