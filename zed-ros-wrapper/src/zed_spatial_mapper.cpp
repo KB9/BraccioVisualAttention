@@ -184,9 +184,21 @@ zed_wrapper::Vertex ZedSpatialMapper::toProjectedVertex(float x, float y, float 
 	result.z = (project(2,0) * x) + (project(2,1) * y) + (project(2,2) * z) + project(2,3);
 	float w = (project(3,0) * x) + (project(3,1) * y) + (project(3,2) * z) + project(3,3);
 
-	// Convert the 3D position to 2D screen positions
-	result.x = (result.x * 1280.0f) / (2.0f * w) + 640.0f;
-	result.y = (result.y * 720.0f) / (2.0f * w) + 360.0f;
+	// Convert the 3D position to 2D screen positions. Ensure that the positions
+	// are in front of the camera (i.e. w >= 0.0f) to avoid mapping points that
+	// are behind the camera onto the projection.
+	if (w >= 0.0f)
+	{
+		result.x = (result.x * 1280.0f) / (2.0f * w) + 640.0f;
+		result.y = (result.y * 720.0f) / (2.0f * w) + 360.0f;
+	}
+	else
+	{
+		// Simply display this projected vertex off the screen to hide it
+		// TODO: Remove these projected vertices entirely instead of hiding
+		result.x = -5.0f;
+		result.y = -5.0f;
+	}
 
 	return result;
 }
