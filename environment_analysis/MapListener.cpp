@@ -44,6 +44,8 @@
 #include "zed_wrapper/Mesh.h"
 #include "opencv2/calib3d.hpp"
 
+#include "MeshProjector.hpp"
+
 Braccio braccio;
 sensor_msgs::PointCloud2Ptr pcl_msg = nullptr;
 std::vector<SalientPoint> salient_points;
@@ -53,8 +55,8 @@ std::unique_ptr<GazeVisualizer> visualizer = nullptr;
 
 ros::ServiceClient client;
 
-// TESTING: Display of spatial mesh vertices
-std::vector<cv::Point3f> mesh_points;
+// Display of spatial mesh vertices
+MeshProjector mesh_projector;
 
 double calculateSaliencyMean(const std::vector<SalientPoint>& points)
 {
@@ -81,16 +83,6 @@ void imageCallback(const sensor_msgs::Image &img_msg)
 		visualizer = std::make_unique<GazeVisualizer>(img_msg);
 	else
 		visualizer->update(img_msg);
-
-	// TESTING: Display of spatial mesh vertices
-	std::vector<cv::Point2f> projectedPoints;
-	if (!mesh_points.empty())
-	{
-		for (const auto &point : mesh_points)
-		{
-			cv::circle(visualizer->getImage(), {point.x, point.y}, 5, {0,255,0,255}, 1);
-		}
-	}
 
 	// Clear all existing salient point
 	salient_points.clear();
@@ -129,6 +121,13 @@ void imageCallback(const sensor_msgs::Image &img_msg)
 	else
 	{
 		ROS_WARN("Did not get a response from tf_object_detection service");
+	}
+
+	// Display of spatial mesh vertices
+	std::vector<MeshVertex2D> display_mesh = mesh_projector.project();
+	for (const auto &point : display_mesh)
+	{
+		cv::circle(visualizer->getImage(), {point.x, point.y}, 5, {0,255,0,255}, 1);
 	}
 
 	// Create the vector containing the wrapped salient keypoints
@@ -175,17 +174,44 @@ void positionCallback(const nav_msgs::Odometry::ConstPtr& odom_msg)
 		pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w);
 }
 
-// TESTING: Display of spatial mesh vertices
+Eigen::MatrixXf toEigenMatrix(const zed_wrapper::Matrix4f &msg)
+{
+	Eigen::MatrixXf matrix(4,4);
+	matrix(0,0) = msg.m11;
+	matrix(0,1) = msg.m12;
+	matrix(0,2) = msg.m13;
+	matrix(0,3) = msg.m14;
+	matrix(1,0) = msg.m21;
+	matrix(1,1) = msg.m22;
+	matrix(1,2) = msg.m23;
+	matrix(1,3) = msg.m24;
+	matrix(2,0) = msg.m31;
+	matrix(2,1) = msg.m32;
+	matrix(2,2) = msg.m33;
+	matrix(2,3) = msg.m34;
+	matrix(3,0) = msg.m41;
+	matrix(3,1) = msg.m42;
+	matrix(3,2) = msg.m43;
+	matrix(3,3) = msg.m44;
+	return matrix;
+}
+
+// Display of spatial mesh vertices
 void meshCallback(const zed_wrapper::Mesh& mesh_msg)
 {
 	ROS_INFO("Received mesh!");
 
-	mesh_points.clear();
+	const Eigen::MatrixXf perspective = toEigenMatrix(mesh_msg.perspective);
+	const Eigen::MatrixXf pose = toEigenMatrix(mesh_msg.pose);
+	mesh_projector.setPerspective(perspective);
+	mesh_projector.setPose(pose);
+
+	mesh_projector.clearMesh();
 	for (auto &chunk : mesh_msg.chunks)
 	{
-		for (auto &pv : chunk.proj_vertices)
+		for (auto &v : chunk.vertices)
 		{
-			mesh_points.emplace_back(pv.x, pv.y, pv.z);
+			mesh_projector.addVertex(v.x, v.y, v.z);
 		}
 	}
 }
