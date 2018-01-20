@@ -13,10 +13,6 @@
 class GazeVisualizer
 {
 public:
-	GazeVisualizer(const sensor_msgs::Image &img_msg);
-
-	std::vector<cv::KeyPoint> detectKeyPoints();
-
 	void drawKeyPoint(const cv::KeyPoint &point);
 	void setGazePoint(int x, int y);
 

@@ -6,20 +6,6 @@
 #include "opencv2/features2d.hpp"
 #include "opencv2/xfeatures2d.hpp"
 
-GazeVisualizer::GazeVisualizer(const sensor_msgs::Image &img_msg)
-{
-	image = image = cv_bridge::toCvCopy(img_msg)->image;
-}
-
-std::vector<cv::KeyPoint> GazeVisualizer::detectKeyPoints()
-{
-	// Detect the ORB key points in the image
-	std::vector<cv::KeyPoint> keypoints;
-	cv::Ptr<cv::ORB> detector = cv::ORB::create();
-	detector->detect(image, keypoints);
-	return keypoints;
-}
-
 void GazeVisualizer::drawKeyPoint(const cv::KeyPoint &point)
 {
 	cv::drawKeypoints(image, { point }, image);
