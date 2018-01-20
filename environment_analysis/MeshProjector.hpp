@@ -9,14 +9,15 @@
 
 struct MeshVertex3D
 {
-	MeshVertex3D(float x, float y, float z)
+	MeshVertex3D(float x, float y, float z, float w)
 	{
 		this->x = x;
 		this->y = y;
 		this->z = z;
+		this->w = w;
 	}
 
-	float x, y, z;
+	float x, y, z, w;
 };
 
 struct MeshVertex2D
@@ -30,12 +31,20 @@ struct MeshVertex2D
 	float x, y;
 };
 
+struct ProjectionOptions
+{
+	float x_angle = 0.0f;
+	float y_angle = 0.0f;
+	float z_angle = 0.0f;
+};
+
 class MeshProjector
 {
 public:
 	MeshProjector();
 
-	std::vector<MeshVertex2D> project();
+	std::vector<MeshVertex3D> project();
+	std::vector<MeshVertex2D> projectToScreen(float width, float height);
 
 	void setPerspective(const Eigen::MatrixXf &camera);
 	void setPose(const Eigen::MatrixXf &pose);

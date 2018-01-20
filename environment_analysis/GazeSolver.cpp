@@ -84,7 +84,7 @@ void GazeSolver::next(const sensor_msgs::Image &img_msg,
 	}
 
 	// Project and display the mesh vertices
-	std::vector<MeshVertex2D> display_mesh = mesh_projector.project();
+	std::vector<MeshVertex2D> display_mesh = mesh_projector.projectToScreen(1280.0f, 720.0f);
 	for (const auto &point : display_mesh)
 	{
 		cv::circle(visualizer.getImage(), {point.x, point.y}, 5, {0,255,0,255}, 1);
