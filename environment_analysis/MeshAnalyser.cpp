@@ -1,14 +1,17 @@
-#include "MeshProjector.hpp"
+#include "MeshAnalyser.hpp"
 
 // Eigen: inverse() definition
 #include <Eigen/Dense>
 
-MeshProjector::MeshProjector()
+#include <limits>
+
+MeshAnalyser::MeshAnalyser()
 {
 	
 }
 
-std::vector<MeshVertex3D> MeshProjector::project()
+std::vector<MeshVertex3D> MeshAnalyser::project(const Eigen::MatrixXf &perspective,
+                                                 const Eigen::MatrixXf &pose)
 {
 	std::vector<MeshVertex3D> output;
 
@@ -43,14 +46,14 @@ std::vector<MeshVertex3D> MeshProjector::project()
 	return output;
 }
 
-std::vector<MeshVertex2D> MeshProjector::projectToScreen(float width, float height)
+std::vector<MeshVertex2D> MeshAnalyser::projectToScreen(float width, float height)
 {
 	std::vector<MeshVertex2D> output;
 
 	float half_width = width / 2.0f;
 	float half_height = height / 2.0f;
 
-	std::vector<MeshVertex3D> projected_vertices = project();
+	std::vector<MeshVertex3D> projected_vertices = project(perspective, pose);
 	for (const auto &vertex : projected_vertices)
 	{
 		// Convert the 3D position to the 2D screen position
@@ -62,27 +65,27 @@ std::vector<MeshVertex2D> MeshProjector::projectToScreen(float width, float heig
 	return output;
 }
 
-void MeshProjector::setPerspective(const Eigen::MatrixXf &perspective)
+void MeshAnalyser::setPerspective(const Eigen::MatrixXf &perspective)
 {
 	this->perspective = perspective;
 }
 
-void MeshProjector::setPose(const Eigen::MatrixXf &pose)
+void MeshAnalyser::setPose(const Eigen::MatrixXf &pose)
 {
 	this-> pose = pose;
 }
 
-void MeshProjector::addVertex(float x, float y, float z)
+void MeshAnalyser::addVertex(float x, float y, float z)
 {
 	mesh.emplace_back(x, y, z, 1.0f);
 }
 
-void MeshProjector::clearMesh()
+void MeshAnalyser::clearMesh()
 {
 	mesh.clear();
 }
 
-void MeshProjector::rotatePose(float x, float y, float z)
+Eigen::MatrixXf MeshAnalyser::getRotationAsTransform(float x, float y, float z)
 {
 	Eigen::MatrixXf x_transform(4,4);
 	// Rotation
@@ -147,5 +150,49 @@ void MeshProjector::rotatePose(float x, float y, float z)
 	z_transform(3,2) = 0;
 	z_transform(3,3) = 1;
 
-	pose *= (x_transform * y_transform * z_transform);
+	return (x_transform * y_transform * z_transform);
+}
+
+Rotation MeshAnalyser::findLesserMappedSection()
+{
+	// Look at the entire mesh by continuously rotating the pose matrix so that
+	// every possible viewing angle has been achieved. A lesser-mapped section
+	// of the mesh will be one that has the fewest vertices.
+
+	// Analysis of the mesh can be viewed as simply looking outwards at all
+	// possible points on a sphere (with the sphere representing the camera and
+	// being infinitely small). Since this equates to a large number of viewing
+	// points, an angular step is used to provide a fast way of performing this
+	// search.
+
+	size_t least_vertices = std::numeric_limits<unsigned int>::max();
+	Rotation angles;
+
+	const float FULL_CIRCLE = 2.0f * 3.14159654f;
+	const int STEP = 4;
+	const float ANGULAR_STEP = FULL_CIRCLE / (float)STEP;
+
+	// The outer loop only needs to go halfway around the sphere, as each inner
+	// loop does a full rotation of the circumference
+	for (int x = 0; x < (STEP / 2); x++)
+	{
+		// Do a full loop of the circumference of the sphere
+		for (int y = 0; y < STEP; y++)
+		{
+			float x_angle = x * ANGULAR_STEP;
+			float y_angle = y * ANGULAR_STEP;
+			Eigen::MatrixXf rot_pose = pose * getRotationAsTransform(x_angle, y_angle, 0.0f);
+
+			size_t current_vertices = project(perspective, rot_pose).size();
+			if (current_vertices < least_vertices)
+			{
+				least_vertices = current_vertices;
+				angles.x = ANGULAR_STEP * x;
+				angles.y = ANGULAR_STEP * y;
+				angles.z = 0.0f;
+			}
+		}
+	}
+
+	return angles;
 }

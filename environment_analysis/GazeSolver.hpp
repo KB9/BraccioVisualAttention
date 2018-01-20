@@ -30,7 +30,7 @@
 #include "GazeVisualizer.hpp"
 
 // MeshProjector
-#include "MeshProjector.hpp"
+#include "MeshAnalyser.hpp"
 
 using DetectedKeypoints = std::vector<cv::KeyPoint>;
 using DetectedObjects = std::vector<tf_object_detection::DetectedObject>;
@@ -48,7 +48,7 @@ public:
 
 private:
 	GaussianMap gaussian_map;
-	MeshProjector mesh_projector;
+	MeshAnalyser mesh_analyser;
 	GazeVisualizer visualizer;
 	ros::ServiceClient obj_detect_client;
 

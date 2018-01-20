@@ -31,19 +31,16 @@ struct MeshVertex2D
 	float x, y;
 };
 
-struct ProjectionOptions
+struct Rotation
 {
-	float x_angle = 0.0f;
-	float y_angle = 0.0f;
-	float z_angle = 0.0f;
+	float x, y, z;
 };
 
-class MeshProjector
+class MeshAnalyser
 {
 public:
-	MeshProjector();
+	MeshAnalyser();
 
-	std::vector<MeshVertex3D> project();
 	std::vector<MeshVertex2D> projectToScreen(float width, float height);
 
 	void setPerspective(const Eigen::MatrixXf &camera);
@@ -52,13 +49,17 @@ public:
 	void addVertex(float x, float y, float z);
 	void clearMesh();
 
-	void rotatePose(float x, float y, float z);
+	Rotation findLesserMappedSection();
 
 private:
 	std::vector<MeshVertex3D> mesh;
-
 	Eigen::MatrixXf perspective;
 	Eigen::MatrixXf pose;
+
+	std::vector<MeshVertex3D> project(const Eigen::MatrixXf &perspective,
+	                                  const Eigen::MatrixXf &pose);
+
+	Eigen::MatrixXf getRotationAsTransform(float x, float y, float z);
 };
 
 #endif // _MESH_PROJECTOR_H_

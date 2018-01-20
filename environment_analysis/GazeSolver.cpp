@@ -70,25 +70,22 @@ void GazeSolver::next(const sensor_msgs::Image &img_msg,
 	// Set the perspective and pose matrices used to project the mesh vertices
 	const Eigen::MatrixXf perspective = toEigenMatrix(mesh.perspective);
 	const Eigen::MatrixXf pose = toEigenMatrix(mesh.pose);
-	mesh_projector.setPerspective(perspective);
-	mesh_projector.setPose(pose);
+	mesh_analyser.setPerspective(perspective);
+	mesh_analyser.setPose(pose);
 
 	// Register all mesh vertices with the mesh projector
-	mesh_projector.clearMesh();
+	mesh_analyser.clearMesh();
 	for (auto &chunk : mesh.chunks)
 	{
 		for (auto &v : chunk.vertices)
 		{
-			mesh_projector.addVertex(v.x, v.y, v.z);
+			mesh_analyser.addVertex(v.x, v.y, v.z);
 		}
 	}
 
-	// Project and display the mesh vertices
-	std::vector<MeshVertex2D> display_mesh = mesh_projector.projectToScreen(1280.0f, 720.0f);
-	for (const auto &point : display_mesh)
-	{
-		cv::circle(visualizer.getImage(), {point.x, point.y}, 5, {0,255,0,255}, 1);
-	}
+	// Find the angles required to view an undermapped section of the mesh
+	Rotation rot = mesh_analyser.findLesserMappedSection();
+	ROS_INFO("Required: (%.3f,%.3f,%.3f)", rot.x, rot.y, rot.z);
 }
 
 GazeVisualizer &GazeSolver::vis()
