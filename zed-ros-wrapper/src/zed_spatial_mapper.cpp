@@ -37,7 +37,7 @@ void ZedSpatialMapper::start()
     // Start a timer, we retrieve the mesh every XXms.
     t_last = std::chrono::high_resolution_clock::now();
 
-    cameraProjection = createCameraProjection();
+    perspective = createPerspective();
 
     is_mapping = true;
     ROS_INFO("Spatial mapping started...");
@@ -108,19 +108,38 @@ void ZedSpatialMapper::update()
     }
 }
 
+zed_wrapper::Matrix4f toMatrixMsg(sl::Transform &transform)
+{
+	zed_wrapper::Matrix4f matrix;
+	matrix.m11 = transform(0,0);
+	matrix.m12 = transform(0,1);
+	matrix.m13 = transform(0,2);
+	matrix.m14 = transform(0,3);
+	matrix.m21 = transform(1,0);
+	matrix.m22 = transform(1,1);
+	matrix.m23 = transform(1,2);
+	matrix.m24 = transform(1,3);
+	matrix.m31 = transform(2,0);
+	matrix.m32 = transform(2,1);
+	matrix.m33 = transform(2,2);
+	matrix.m34 = transform(2,3);
+	matrix.m41 = transform(3,0);
+	matrix.m42 = transform(3,1);
+	matrix.m43 = transform(3,2);
+	matrix.m44 = transform(3,3);
+	return matrix;
+}
+
 void ZedSpatialMapper::publish(ros::Publisher &pub_mesh)
 {
-	// Get the current projection vertices for the mesh vertices
-	for (auto &chunk : mesh_msg.chunks)
+	if (is_mapping)
 	{
-		chunk.proj_vertices.clear();
-		for (auto &vertex : chunk.vertices)
-		{
-			chunk.proj_vertices.push_back(toProjectedVertex(vertex.x, vertex.y, vertex.z));
-		}
-	}
+		// Update the pose and projection
+		mesh_msg.perspective = toMatrixMsg(perspective);
+		mesh_msg.pose = toMatrixMsg(pose.pose_data);
 
-	pub_mesh.publish(mesh_msg);
+		pub_mesh.publish(mesh_msg);
+	}
 }
 
 void ZedSpatialMapper::updateMsg()
@@ -175,35 +194,7 @@ void ZedSpatialMapper::updateMsg()
 	}
 }
 
-zed_wrapper::Vertex ZedSpatialMapper::toProjectedVertex(float x, float y, float z)
-{
-	zed_wrapper::Vertex result;
-	sl::Transform project = cameraProjection * sl::Transform::inverse(pose.pose_data);
-	result.x = (project(0,0) * x) + (project(0,1) * y) + (project(0,2) * z) + project(0,3);
-	result.y = (project(1,0) * x) + (project(1,1) * y) + (project(1,2) * z) + project(1,3);
-	result.z = (project(2,0) * x) + (project(2,1) * y) + (project(2,2) * z) + project(2,3);
-	float w = (project(3,0) * x) + (project(3,1) * y) + (project(3,2) * z) + project(3,3);
-
-	// Convert the 3D position to 2D screen positions. Ensure that the positions
-	// are in front of the camera (i.e. w >= 0.0f) to avoid mapping points that
-	// are behind the camera onto the projection.
-	if (w >= 0.0f)
-	{
-		result.x = (result.x * 1280.0f) / (2.0f * w) + 640.0f;
-		result.y = (result.y * 720.0f) / (2.0f * w) + 360.0f;
-	}
-	else
-	{
-		// Simply display this projected vertex off the screen to hide it
-		// TODO: Remove these projected vertices entirely instead of hiding
-		result.x = -5.0f;
-		result.y = -5.0f;
-	}
-
-	return result;
-}
-
-sl::Transform ZedSpatialMapper::createCameraProjection()
+sl::Transform ZedSpatialMapper::createPerspective()
 {
     // Create projection matrix. Use this matrix in combination with the Pose
     // (on REFERENCE_FRAME_WORLD) to project the mesh on the 2D Image.

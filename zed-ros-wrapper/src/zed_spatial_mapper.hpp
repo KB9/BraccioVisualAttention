@@ -39,12 +39,11 @@ private:
 
 	zed_wrapper::Mesh mesh_msg;
 
-	sl::Transform cameraProjection;
+	sl::Transform perspective;
 
 	void updateMsg();
 
-	sl::Transform createCameraProjection();
-	zed_wrapper::Vertex toProjectedVertex(float x, float y, float z);
+	sl::Transform createPerspective();
 };
 
 #endif // _ZED_SPATIAL_MAPPER_H_
