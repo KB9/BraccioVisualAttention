@@ -8,7 +8,7 @@ from std_msgs.msg import Int32MultiArray, Bool
 
 payload = {}
 headers = {'content-type': 'application/json'}
-ip = 'http://192.168.0.13:4000/jsonrpc'
+ip = 'http://192.168.0.71:4000/jsonrpc'
 publisher = None
 
 def onAnglesReceived(angles):
