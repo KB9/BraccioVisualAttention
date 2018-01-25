@@ -12,6 +12,7 @@
 
 // PCL
 #include "sensor_msgs/PointCloud2.h"
+#include "pcl_ros/point_cloud.h"
 
 // Mesh
 #include "zed_wrapper/Mesh.h"
@@ -35,16 +36,32 @@
 using DetectedKeypoints = std::vector<cv::KeyPoint>;
 using DetectedObjects = std::vector<tf_object_detection::DetectedObject>;
 
+using PointCloud = pcl::PointCloud<pcl::PointXYZRGB>;
+
+struct SensorData
+{
+	sensor_msgs::Image image;
+	sensor_msgs::PointCloud2Ptr cloud;
+	zed_wrapper::Mesh mesh;
+};
+
+struct GazePoint
+{
+	float x, y, z;
+};
+
 class GazeSolver
 {
 public:
 	GazeSolver(const ros::ServiceClient &obj_detect_client);
 
-	void next(const sensor_msgs::Image &img_msg,
-	          const sensor_msgs::PointCloud2Ptr &cloud,
-	          const zed_wrapper::Mesh &mesh);
+	GazePoint next(const SensorData &data);
 
-	GazeVisualizer &vis();
+	GazePoint alignPoint(const GazePoint &point,
+                         float effector_x_angle, float effector_y_angle,
+                         float effector_z_angle);
+
+	void showVisualization(const sensor_msgs::Image &img_msg);
 
 private:
 	GaussianMap gaussian_map;
@@ -54,8 +71,14 @@ private:
 
 	DetectedKeypoints detectKeypoints();
 	DetectedObjects detectObjects(const sensor_msgs::Image &img_msg);
-
 	DetectedKeypoints mostSalientKeypoints(DetectedKeypoints &keypoints);
+
+	GazePoint find3dPoint(unsigned screen_x, unsigned screen_y,
+	                      PointCloud &cloud);
+	GazePoint find3dPoint(tf_object_detection::DetectedObject object,
+	                      PointCloud &cloud);
+	GazePoint find3dPoint(cv::KeyPoint keypoint,
+	                      PointCloud &cloud);
 };
 
 #endif // _GAZE_SOLVER_H_

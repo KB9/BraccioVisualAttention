@@ -25,11 +25,13 @@ void GazeVisualizer::setGazePoint(int x, int y)
 
 void GazeVisualizer::update(const sensor_msgs::Image &img_msg)
 {
-	image = image = cv_bridge::toCvCopy(img_msg)->image;
+	image = cv_bridge::toCvCopy(img_msg)->image;
 }
 
-void GazeVisualizer::show()
+bool GazeVisualizer::show()
 {
+	if (image.empty()) return false;
+
 	// Create a temporary image
 	cv::Mat temp = image.clone();
 
@@ -44,6 +46,8 @@ void GazeVisualizer::show()
 	// Display the image
 	cv::imshow("view", temp);
 	cv::waitKey(30);
+
+	return true;
 }
 
 cv::Mat &GazeVisualizer::getImage()

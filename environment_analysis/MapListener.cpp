@@ -29,37 +29,70 @@
 Braccio braccio;
 
 std::unique_ptr<GazeSolver> gaze_solver = nullptr;
-sensor_msgs::Image img;
-sensor_msgs::PointCloud2Ptr pcl_msg;
-zed_wrapper::Mesh mesh;
+SensorData gaze_data;
 
 void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 {
+	// Get the y-rotation of the effector
+	BraccioJointAngles angles = braccio.getJointAngles();
+	float angle_eff_deg = angles.shoulder + (angles.elbow - 90) + (angles.wrist - 90);
+	float angle_eff = toRadians(angle_eff_deg);
+
+	ROS_INFO("angles are %f %f %f %f",angles.base, angles.shoulder, angles.elbow, angles.wrist);
+	// Get the z-rotation of the effector
+	float angle_base = toRadians(angles.base);
+	
 	// Find the next gaze point to focus on
-	// TODO: Make this return a result
-	gaze_solver->next(img, pcl_msg, mesh);
+	// NOTE: The gaze point solver works with a RHS-with-Y-up coordinate system
+	GazePoint gaze_point = gaze_solver->next(gaze_data);
+
+	// static int first = 0;
+
+	// Rotate the gaze point after swapping the axes so that the coordinate system
+	// matches that of the Braccio kinematics
+	GazePoint braccio_gaze_point = gaze_solver->alignPoint({gaze_point.z, -gaze_point.y, gaze_point.x},
+	                                                       0.0f, angle_eff, angle_base);
+
+	//gaze_point = {0,0,0};
+
+	// if (first == 0)
+	// 	{
+	// 		gaze_point = {0, 0, 1};
+	// 		ROS_INFO("angles are %f %f %f %f",angles.base, angles.shoulder, angles.elbow, angles.wrist);
+	// 		ROS_INFO("camera pos is %f %f %f", gaze_point.x, gaze_point.y, gaze_point.z);
+	// 		ROS_INFO("braccio pos becomes %f %f %f", braccio_gaze_point.x, braccio_gaze_point.y, braccio_gaze_point.z);
+	// 		ROS_INFO ("given effectors %f %f %f ", braccio.getEffectorX(), braccio.getEffectorY(), braccio.getEffectorZ());
+	// 		return ;
+	// 	}
+
+	// first++;
+
+
+	// Add the effector position to the gaze point
+	const float M_TO_CM = 100.0f;
+	float braccio_x = (braccio_gaze_point.x * M_TO_CM) + braccio.getEffectorX();
+	float braccio_y = (braccio_gaze_point.y * M_TO_CM) + braccio.getEffectorY();
+	float braccio_z = (braccio_gaze_point.z * M_TO_CM) + braccio.getEffectorZ();
+
+	// Send the coordinates to the Braccio
+	braccio.lookAt(braccio_x, braccio_y, braccio_z);
 }
 
 void imageCallback(const sensor_msgs::Image &img_msg)
 {
-	img = img_msg;
-
-	// TODO: Perform next gaze point solving every time an image is received, as
-	// the Braccio is not currently being used
-	onBraccioGazeFocusedCallback(std_msgs::Bool{});
-
-	gaze_solver->vis().show();
+	gaze_data.image = img_msg;
+	gaze_solver->showVisualization(img_msg);
 }
 
 void cloudMapCallback(const sensor_msgs::PointCloud2Ptr& cloud_msg)
 {
-	pcl_msg = cloud_msg;
+	gaze_data.cloud = cloud_msg;
 }
 
 // Display of spatial mesh vertices
 void meshCallback(const zed_wrapper::Mesh& mesh_msg)
 {
-	mesh = mesh_msg;
+	gaze_data.mesh = mesh_msg;
 }
 
 int main(int argc, char **argv)
@@ -76,10 +109,6 @@ int main(int argc, char **argv)
 	ros::Subscriber pcl2_sub;
 	pcl2_sub = node_handle.subscribe("/zed/point_cloud/cloud_registered", 1, cloudMapCallback);
 
-	// DISABLED: Braccio functionality disabled
-	// braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
-	// braccio.lookAt(5.0f, 5.0f, 20.0f);
-
 	ros::Subscriber mesh_sub;
 	mesh_sub = node_handle.subscribe("/zed/mesh", 1, meshCallback);
 
@@ -88,6 +117,9 @@ int main(int argc, char **argv)
 
 	// NEW
 	gaze_solver = std::make_unique<GazeSolver>(client);
+
+	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
+	braccio.lookAt(5.0f, 5.0f, 20.0f);
 
 	ros::spin();
 

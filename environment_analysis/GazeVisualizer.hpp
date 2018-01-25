@@ -17,7 +17,7 @@ public:
 	void setGazePoint(int x, int y);
 
 	void update(const sensor_msgs::Image &img_msg);
-	void show();
+	bool show();
 
 	// For direct access to the image matrix
 	cv::Mat &getImage();
