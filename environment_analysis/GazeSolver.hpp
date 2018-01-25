@@ -74,11 +74,11 @@ private:
 	DetectedKeypoints mostSalientKeypoints(DetectedKeypoints &keypoints);
 
 	GazePoint find3dPoint(unsigned screen_x, unsigned screen_y,
-	                      PointCloud &cloud);
+	                      const SensorData &data);
 	GazePoint find3dPoint(tf_object_detection::DetectedObject object,
-	                      PointCloud &cloud);
+	                      const SensorData &data);
 	GazePoint find3dPoint(cv::KeyPoint keypoint,
-	                      PointCloud &cloud);
+	                      const SensorData &data);
 };
 
 #endif // _GAZE_SOLVER_H_

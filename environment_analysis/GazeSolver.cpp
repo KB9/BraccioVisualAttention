@@ -92,22 +92,17 @@ GazePoint GazeSolver::next(const SensorData &data)
 	finitum until the user desires to stop mapping.
 	*/
 
-	// Convert the point cloud ROS message to a PointCloud object
-	PointCloud cloud;
-	if (data.cloud == nullptr) return {0.0f, 0.0f, 0.0f}; // TODO: TEMPORARY FIX
-	pcl::fromROSMsg(*(data.cloud), cloud);
-
 	// Look at objects first
 	if (!objects.empty())
 	{
 		ROS_INFO("Focusing gaze on detected object.");
-		return find3dPoint(objects[0], cloud);
+		return find3dPoint(objects[0], data);
 	}
 	// Look at keypoints if no objects are found
 	else if (!keypoints.empty())
 	{
 		ROS_INFO("Focusing gaze on detected salient keypoint.");
-		return find3dPoint(keypoints[0], cloud);
+		return find3dPoint(keypoints[0], data);
 	}
 	// If there are no objects/keypoints, find an under-mapped section of the
 	// mesh to look at
@@ -211,8 +206,13 @@ DetectedKeypoints GazeSolver::mostSalientKeypoints(DetectedKeypoints &keypoints)
 }
 
 GazePoint GazeSolver::find3dPoint(unsigned screen_x, unsigned screen_y,
-                                  PointCloud &cloud)
+                                  const SensorData &data)
 {
+	// Convert the point cloud ROS message to a PointCloud object
+	PointCloud cloud;
+	if (data.cloud == nullptr) return {0.0f, 0.0f, 0.0f}; // TODO: TEMPORARY FIX
+	pcl::fromROSMsg(*(data.cloud), cloud);
+
 	// If the cloud isn't organized, the PCL point can't be determined
 	if (!cloud.isOrganized())
 	{
@@ -253,7 +253,7 @@ GazePoint GazeSolver::find3dPoint(unsigned screen_x, unsigned screen_y,
 }
 
 GazePoint GazeSolver::find3dPoint(tf_object_detection::DetectedObject object,
-                                  PointCloud &cloud)
+                                  const SensorData &data)
 {
 	// Determine the center point of the bounding box containing the object
 	unsigned width = object.right - object.left;
@@ -261,13 +261,13 @@ GazePoint GazeSolver::find3dPoint(tf_object_detection::DetectedObject object,
 	unsigned center_x = object.left + (width / 2);
 	unsigned center_y = object.top + (height / 2);
 
-	return find3dPoint(center_x, center_y, cloud);
+	return find3dPoint(center_x, center_y, data);
 }
 
 GazePoint GazeSolver::find3dPoint(cv::KeyPoint keypoint,
-                                  PointCloud &cloud)
+                                  const SensorData &data)
 {
-	return find3dPoint(keypoint.pt.x, keypoint.pt.y, cloud);
+	return find3dPoint(keypoint.pt.x, keypoint.pt.y, data);
 }
 
 GazePoint GazeSolver::alignPoint(const GazePoint &point,
