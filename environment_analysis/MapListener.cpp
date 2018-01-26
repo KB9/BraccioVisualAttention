@@ -46,27 +46,10 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 	// NOTE: The gaze point solver works with a RHS-with-Y-up coordinate system
 	GazePoint gaze_point = gaze_solver->next(gaze_data);
 
-	// static int first = 0;
-
 	// Rotate the gaze point after swapping the axes so that the coordinate system
 	// matches that of the Braccio kinematics
-	GazePoint braccio_gaze_point = gaze_solver->alignPoint({gaze_point.z, -gaze_point.y, gaze_point.x},
-	                                                       0.0f, angle_eff, angle_base);
-
-	//gaze_point = {0,0,0};
-
-	// if (first == 0)
-	// 	{
-	// 		gaze_point = {0, 0, 1};
-	// 		ROS_INFO("angles are %f %f %f %f",angles.base, angles.shoulder, angles.elbow, angles.wrist);
-	// 		ROS_INFO("camera pos is %f %f %f", gaze_point.x, gaze_point.y, gaze_point.z);
-	// 		ROS_INFO("braccio pos becomes %f %f %f", braccio_gaze_point.x, braccio_gaze_point.y, braccio_gaze_point.z);
-	// 		ROS_INFO ("given effectors %f %f %f ", braccio.getEffectorX(), braccio.getEffectorY(), braccio.getEffectorZ());
-	// 		return ;
-	// 	}
-
-	// first++;
-
+	GazePoint braccio_gaze_point = gaze_solver->alignPoint({gaze_point.z, -gaze_point.x, gaze_point.y},
+	                                                       0.0f, angle_eff, -angle_base);
 
 	// Add the effector position to the gaze point
 	const float M_TO_CM = 100.0f;

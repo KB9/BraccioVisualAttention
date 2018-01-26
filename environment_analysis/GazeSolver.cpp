@@ -274,39 +274,6 @@ GazePoint GazeSolver::alignPoint(const GazePoint &point,
                                  float effector_x_angle, float effector_y_angle,
                                  float effector_z_angle)
 {
-	// Eigen::MatrixXf x_rotate(3,3);
-	// x_rotate(0,0) = 1;
-	// x_rotate(0,1) = 0;
-	// x_rotate(0,2) = 0;
-	// x_rotate(1,0) = 0;
-	// x_rotate(1,1) = cosf(x_angle);
-	// x_rotate(1,2) = -sinf(x_angle);
-	// x_rotate(2,0) = 0;
-	// x_rotate(2,1) = sinf(x_angle);
-	// x_rotate(2,2) = cosf(x_angle);
-
-	// Eigen::MatrixXf y_rotate(3,3);
-	// y_rotate(0,0) = cosf(y_angle);
-	// y_rotate(0,1) = 0;
-	// y_rotate(0,2) = sinf(y_angle);
-	// y_rotate(1,0) = 0;
-	// y_rotate(1,1) = 1;
-	// y_rotate(1,2) = 0;
-	// y_rotate(2,0) = -sinf(y_angle);
-	// y_rotate(2,1) = 0;
-	// y_rotate(2,2) = cosf(y_angle);
-
-	// Eigen::MatrixXf z_rotate(3,3);
-	// z_rotate(0,0) = cosf(z_angle);
-	// z_rotate(0,1) = -sinf(z_angle);
-	// z_rotate(0,2) = 0;
-	// z_rotate(1,0) = sinf(z_angle);
-	// z_rotate(1,1) = cosf(z_angle);
-	// z_rotate(1,2) = 0;
-	// z_rotate(2,0) = 0;
-	// z_rotate(2,1) = 0;
-	// z_rotate(2,2) = 1;
-
 	Eigen::MatrixXf x_rotate(3,3);
 	x_rotate(0,0) = 1;
 	x_rotate(0,1) = 0;
@@ -345,7 +312,8 @@ GazePoint GazeSolver::alignPoint(const GazePoint &point,
 	pos(1,0) = point.y;
 	pos(2,0) = point.z;
 
-	Eigen::MatrixXf result = (x_rotate * y_rotate * z_rotate) * pos;
+	// First rotate around Y then around Z
+	Eigen::MatrixXf result = z_rotate * (y_rotate * pos);
 	float x = result(0,0);
 	float y = result(1,0);
 	float z = result(2,0);
