@@ -65,3 +65,13 @@ cd ~/catkin_ws
 roslaunch zed_wrapper zed.launch
 ```
 If successful, this should report that data is being published on several ROS topics.
+
+### Starting the TensorFlow Object Detection Service
+*This is optional, as the environment analysis can be performed without object detection.*
+
+To start the object detection service:
+```
+cd ~/catkin_ws
+rosrun tf_object_detection object_detection_demo.py
+```
+If successful, a message stating that the service is ready for object detection will be displayed.
