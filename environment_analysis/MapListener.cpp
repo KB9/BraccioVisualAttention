@@ -32,16 +32,7 @@ std::unique_ptr<GazeSolver> gaze_solver = nullptr;
 SensorData gaze_data;
 
 void onBraccioGazeFocusedCallback(std_msgs::Bool value)
-{
-	// Get the y-rotation of the effector
-	BraccioJointAngles angles = braccio.getJointAngles();
-	float angle_eff_deg = angles.shoulder + (angles.elbow - 90) + (angles.wrist - 90);
-	float angle_eff = toRadians(angle_eff_deg);
-
-	ROS_INFO("angles are %f %f %f %f",angles.base, angles.shoulder, angles.elbow, angles.wrist);
-	// Get the z-rotation of the effector
-	float angle_base = toRadians(angles.base);
-	
+{	
 	// Find the next gaze point to focus on
 	// NOTE: The gaze point solver works with a RHS-with-Y-up coordinate system
 	GazePoint gaze_point = gaze_solver->next(gaze_data);

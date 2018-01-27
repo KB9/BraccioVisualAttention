@@ -92,31 +92,41 @@ GazePoint GazeSolver::next(const SensorData &data)
 	finitum until the user desires to stop mapping.
 	*/
 
-	// Look at objects first
-	if (!objects.empty())
+	// Try to look at any objects first
+	while (!objects.empty())
 	{
-		ROS_INFO("Focusing gaze on detected object.");
-		return find3dPoint(objects[0], data);
+		GazePoint gaze_point = find3dPoint(objects[0], data);
+		objects.erase(objects.begin());
+		if (gaze_point.x > 0 || gaze_point.y > 0 || gaze_point.z > 0)
+		{
+			ROS_INFO("Focusing gaze on detected object.");
+			return gaze_point;
+		}
 	}
-	// Look at keypoints if no objects are found
-	else if (!keypoints.empty())
+
+	// Then try to look at any salient keypoints next
+	while (!keypoints.empty())
 	{
-		ROS_INFO("Focusing gaze on detected salient keypoint.");
-		return find3dPoint(keypoints[0], data);
+		GazePoint gaze_point = find3dPoint(keypoints[0], data);
+		keypoints.erase(keypoints.begin());
+		if (gaze_point.x > 0 || gaze_point.y > 0 || gaze_point.z > 0)
+		{
+			ROS_INFO("Focusing gaze on detected salient keypoint.");
+			return gaze_point;
+		}
 	}
-	// If there are no objects/keypoints, find an under-mapped section of the
-	// mesh to look at
-	else
-	{
-		ROS_INFO("Focusing gaze on under-mapped mesh section.");
-		// Find the angles required to view an undermapped section of the mesh
-		// Use a fake distant point and rotate it according to the mesh analysis
-		// angles to focus gaze on it
-		// NOTE: Mesh analysis takes a REALLY long time
-		// GazePoint fake_point{0.0f, 0.0f, 5.0f};
-		// Rotation rot = mesh_analyser.findLesserMappedSection();
-		// return alignPoint(fake_point, rot.x, rot.y, rot.z);
-	}
+
+	// If neither objects or keypoints could be looked at, attempt to look
+	// at an under-mapped area of the environment mesh
+	ROS_INFO("Focusing gaze on under-mapped mesh section.");
+
+	// Find the angles required to view an undermapped section of the mesh
+	// Use a fake distant point and rotate it according to the mesh analysis
+	// angles to focus gaze on it
+	// NOTE: Mesh analysis takes a REALLY long time
+	GazePoint fake_point{0.0f, 0.0f, 5.0f};
+	Rotation rot = mesh_analyser.findLesserMappedSection();
+	return rotate3dPoint(fake_point, rot.x, rot.y, rot.z);
 }
 
 void GazeSolver::showVisualization(const sensor_msgs::Image &img_msg)
@@ -272,4 +282,49 @@ GazePoint GazeSolver::find3dPoint(cv::KeyPoint keypoint,
                                   const SensorData &data)
 {
 	return find3dPoint(keypoint.pt.x, keypoint.pt.y, data);
+}
+
+GazePoint GazeSolver::rotate3dPoint(const GazePoint &point,
+                                    float x_angle, float y_angle, float z_angle)
+{
+	Eigen::MatrixXf x_rotate(3,3);
+	x_rotate(0,0) = 1;
+	x_rotate(0,1) = 0;
+	x_rotate(0,2) = 0;
+	x_rotate(1,0) = 0;
+	x_rotate(1,1) = cosf(x_angle);
+	x_rotate(1,2) = -sinf(x_angle);
+	x_rotate(2,0) = 0;
+	x_rotate(2,1) = sinf(x_angle);
+	x_rotate(2,2) = cosf(x_angle);
+
+	Eigen::MatrixXf y_rotate(3,3);
+	y_rotate(0,0) = cosf(y_angle);
+	y_rotate(0,1) = 0;
+	y_rotate(0,2) = sinf(y_angle);
+	y_rotate(1,0) = 0;
+	y_rotate(1,1) = 1;
+	y_rotate(1,2) = 0;
+	y_rotate(2,0) = -sinf(y_angle);
+	y_rotate(2,1) = 0;
+	y_rotate(2,2) = cosf(y_angle);
+
+	Eigen::MatrixXf z_rotate(3,3);
+	z_rotate(0,0) = cosf(z_angle);
+	z_rotate(0,1) = -sinf(z_angle);
+	z_rotate(0,2) = 0;
+	z_rotate(1,0) = sinf(z_angle);
+	z_rotate(1,1) = cosf(z_angle);
+	z_rotate(1,2) = 0;
+	z_rotate(2,0) = 0;
+	z_rotate(2,1) = 0;
+	z_rotate(2,2) = 1;
+
+	Eigen::MatrixXf pos(3,1);
+	pos(0,0) = point.x;
+	pos(1,0) = point.y;
+	pos(2,0) = point.z;
+
+	Eigen::MatrixXf result = (x_rotate * (y_rotate * (z_rotate * pos)));
+	return {result(0,0), result(1,0), result(2,0)};
 }

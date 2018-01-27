@@ -11,7 +11,7 @@ MeshAnalyser::MeshAnalyser()
 }
 
 std::vector<MeshVertex3D> MeshAnalyser::project(const Eigen::MatrixXf &perspective,
-                                                 const Eigen::MatrixXf &pose)
+                                                const Eigen::MatrixXf &pose)
 {
 	std::vector<MeshVertex3D> output;
 

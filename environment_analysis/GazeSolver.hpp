@@ -75,6 +75,9 @@ private:
 	                      const SensorData &data);
 	GazePoint find3dPoint(cv::KeyPoint keypoint,
 	                      const SensorData &data);
+
+	GazePoint rotate3dPoint(const GazePoint &point,
+	                        float x_angle, float y_angle, float z_angle);
 };
 
 #endif // _GAZE_SOLVER_H_
