@@ -57,3 +57,11 @@ cd ~/catkin_ws/
 source devel/setup.bash
 rosrun braccio_gaze_control braccio_gaze_controller.py
 ```
+
+### Starting the ZED Camera
+The ZED stereo camera must be started before any environment analysis can be performed:
+```
+cd ~/catkin_ws
+roslaunch zed_wrapper zed.launch
+```
+If successful, this should report that data is being published on several ROS topics.
