@@ -75,3 +75,11 @@ cd ~/catkin_ws
 rosrun tf_object_detection object_detection_demo.py
 ```
 If successful, a message stating that the service is ready for object detection will be displayed.
+
+### Starting the Environment Analyser
+To start the environment analyser:
+```
+cd ~/catkin_ws
+rosrun environment_analysis rtabmap_ros_listener
+```
+A window displaying the camera feed and various debug-related data should be displayed, indicating that the environment analysis is currently active.
