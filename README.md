@@ -3,30 +3,57 @@
 BraccioVisualAttention 
 
 ## Installation
-
-
+Create a catkin workspace:
+```
+mkdir -p ~/catkin_ws/src
+```
+Navigate to the `src` directory in your catkin workspace and clone this repository:
+```
+cd ~/catkin_ws/src
+git clone https://github.com/KB9/BraccioVisualAttention.git
+```
+Build the project using catkin:
+```
+cd ~/catkin_ws
+catkin_make install
+```
 
 ### Requirements
 * Ubuntu 16.04 LTS
 * ROS Kinetic
-* libfreenect2
-* IAI Kinect2
 
 ## Usage
 
-Open a new terminal. Execute the following command to launch the bridge between libfreenect2 and ROS:
-```
-roslaunch kinect2_bridge kinect2_bridge.launch publish_tf:=true
-```
+There are 4 parts to this project:
+* **braccio_gaze_control**: This is responsible for the communication between your computer and the Braccio's Arduino.
+* **environment_analysis**: Performs analysis on the data from the camera feed, and selects the most important features to look at.
+* **tf_object_detection**: A ROS wrapper for the [TensorFlow Object Detection API](https://github.com/tensorflow/models/tree/master/research/object_detection), allowing objects to be detected in the camera feed.
+* **zed-ros-wrapper**: A modified version [ROS wrapper for the ZED stereo camera](http://wiki.ros.org/zed-ros-wrapper), whose modification allows it to generate and save an environment mesh.
 
-The above will eventually halt, stating that it is "waiting for clients to connect".
-Once this occurs, open another terminal and execute the following command to launch the rtabmap_ros package:
-```
-roslaunch rtabmap_ros rgbd_mapping_kinect2.launch resolution:=qhd
-```
-rtabmap_ros will now be open, and will allow you to visualize the point cloud that is generated using the feed from the Kinect One.
+### Communication with the Braccio
+To send movement commands to the Braccio, the Braccio's Arduino Yun must be first connected to the same Wi-Fi hotspot as your computer:
+* Connect to the Wi-Fi hotspot created by the Yun.
+* Visit http://arduino3.local
+* Follow the instructions to connect the Yun to the Wi-Fi hotspot your computer is connected to.
 
-To run the environment analysis package, open another terminal and execute the following command:
+Once the Yun is connected to the same Wi-Fi hotspot, the JSON RPC server must be set up on the Braccio's Arduino Yun. The server code can be sent to the Arduino as follows:
 ```
-rosrun environment_analysis rtabmap_ros_listener
+roscd braccio_gaze_control/
+scp braccio_gaze_server.py root@arduino3.local:~
+```
+This will copy the server code into root's home directory on the Arduino. To launch the RPC server, SSH into the Arduino, using **arduino** as the password:
+```
+ssh root@arduino3.local
+```
+Then launch the server:
+```
+python braccio_gaze_server.py
+```
+If this was successful, you should see a confirmation message stating that the server is running at a specified IP address and port.
+
+Now you must connect a client to the server, in order to send commands from your computer to the running server:
+```
+cd ~/catkin_ws/
+source devel/setup.bash
+rosrun braccio_gaze_control braccio_gaze_controller.py
 ```
