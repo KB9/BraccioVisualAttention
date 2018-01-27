@@ -33,7 +33,7 @@
 // MeshProjector
 #include "MeshAnalyser.hpp"
 
-using DetectedKeypoints = std::vector<cv::KeyPoint>;
+using DetectedKeypoints = std::vector<SalientPoint>;
 using DetectedObjects = std::vector<tf_object_detection::DetectedObject>;
 
 using PointCloud = pcl::PointCloud<pcl::PointXYZRGB>;
@@ -43,6 +43,11 @@ struct SensorData
 	sensor_msgs::Image image;
 	sensor_msgs::PointCloud2Ptr cloud;
 	zed_wrapper::Mesh mesh;
+};
+
+struct ScreenPosition
+{
+	unsigned x, y;
 };
 
 struct GazePoint
@@ -67,14 +72,11 @@ private:
 
 	DetectedKeypoints detectKeypoints();
 	DetectedObjects detectObjects(const sensor_msgs::Image &img_msg);
-	DetectedKeypoints mostSalientKeypoints(DetectedKeypoints &keypoints);
+	DetectedKeypoints mostSalientKeypoints(std::vector<cv::KeyPoint> &keypoints);
 
-	GazePoint find3dPoint(unsigned screen_x, unsigned screen_y,
-	                      const SensorData &data);
-	GazePoint find3dPoint(tf_object_detection::DetectedObject object,
-	                      const SensorData &data);
-	GazePoint find3dPoint(cv::KeyPoint keypoint,
-	                      const SensorData &data);
+	GazePoint find3dPoint(const ScreenPosition &screen, const SensorData &data);
+	ScreenPosition toScreen(const tf_object_detection::DetectedObject &object);
+	ScreenPosition toScreen(const cv::KeyPoint &keypoint);
 
 	GazePoint rotate3dPoint(const GazePoint &point,
 	                        float x_angle, float y_angle, float z_angle);

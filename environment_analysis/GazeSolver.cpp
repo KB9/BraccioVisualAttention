@@ -1,5 +1,8 @@
 #include "GazeSolver.hpp"
 
+// Infra
+#include <limits>
+
 // OpenCV
 #include <opencv2/opencv.hpp>
 
@@ -63,7 +66,7 @@ GazePoint GazeSolver::next(const SensorData &data)
 
 	// Draw the keypoints on the image
 	for (const auto &kp : keypoints)
-		visualizer.drawKeyPoint(kp);
+		visualizer.drawKeyPoint(kp.getKeyPoint());
 
 	/*
 	PLAN FOR SOLVER:
@@ -76,28 +79,52 @@ GazePoint GazeSolver::next(const SensorData &data)
 	finitum until the user desires to stop mapping.
 	*/
 
+	gaussian_map.decay(5.0f);
+
 	// Try to look at any objects first
 	while (!objects.empty())
 	{
-		GazePoint gaze_point = find3dPoint(objects[0], data);
+		auto screen_pos = toScreen(objects[0]);
+		GazePoint gaze_point = find3dPoint(screen_pos, data);
 		objects.erase(objects.begin());
 		if (gaze_point.x > 0 || gaze_point.y > 0 || gaze_point.z > 0)
 		{
 			ROS_INFO("Focusing gaze on detected object.");
+			gaussian_map.add(gaze_point.x, gaze_point.y, gaze_point.z, 1000);
+			visualizer.setGazePoint(screen_pos.x, screen_pos.y);
 			return gaze_point;
 		}
 	}
 
 	// Then try to look at any salient keypoints next
-	while (!keypoints.empty())
+	GazePoint chosen_gaze_point;
+	float max_saliency = std::numeric_limits<float>::min();
+	float min_gaussian = std::numeric_limits<float>::max();
+	bool chosen = false;
+	unsigned screen_x, screen_y;
+	for (const auto &keypoint : keypoints)
 	{
-		GazePoint gaze_point = find3dPoint(keypoints[0], data);
-		keypoints.erase(keypoints.begin());
-		if (gaze_point.x > 0 || gaze_point.y > 0 || gaze_point.z > 0)
+		auto screen_pos = toScreen(keypoint.getKeyPoint());
+		GazePoint gaze_point = find3dPoint(screen_pos, data);
+		float saliency = keypoint.getSaliencyScore();
+		float gaussian = gaussian_map.calculate(gaze_point.x, gaze_point.y, gaze_point.z);
+		if (gaze_point.x > 0 && gaze_point.y > 0 && gaze_point.z > 0 &&
+		    saliency >= max_saliency && gaussian <= min_gaussian)
 		{
-			ROS_INFO("Focusing gaze on detected salient keypoint.");
-			return gaze_point;
+			chosen_gaze_point = gaze_point;
+			max_saliency = saliency;
+			min_gaussian = gaussian;
+			chosen = true;
+			screen_x = screen_pos.x;
+			screen_y = screen_pos.y;
 		}
+	}
+	if (chosen)
+	{
+		ROS_INFO("Focusing gaze on detected salient point (S=%.3f, G=%.3f).", max_saliency, min_gaussian);
+		gaussian_map.add(chosen_gaze_point.x, chosen_gaze_point.y, chosen_gaze_point.z, 1000);
+		visualizer.setGazePoint(screen_x, screen_y);
+		return chosen_gaze_point;
 	}
 
 	// If neither objects or keypoints could be looked at, attempt to look
@@ -131,7 +158,7 @@ void GazeSolver::showVisualization(const sensor_msgs::Image &img_msg)
 
 	// Draw the keypoints on the image
 	for (const auto &kp : keypoints)
-		visualizer.drawKeyPoint(kp);
+		visualizer.drawKeyPoint(kp.getKeyPoint());
 
 	visualizer.show();
 }
@@ -182,11 +209,11 @@ DetectedObjects GazeSolver::detectObjects(const sensor_msgs::Image &img_msg)
 	return detected_objects;
 }
 
-DetectedKeypoints GazeSolver::mostSalientKeypoints(DetectedKeypoints &keypoints)
+DetectedKeypoints GazeSolver::mostSalientKeypoints(std::vector<cv::KeyPoint> &keypoints)
 {
 	// Create the vector containing the wrapped salient keypoints, in order for
 	// their saliency scores to be calculated
-	std::vector<SalientPoint> salient_points;
+	DetectedKeypoints salient_points;
 	std::for_each(keypoints.begin(), keypoints.end(), [&](cv::KeyPoint& k)
 	{
 		salient_points.emplace_back(k, k.pt.x, k.pt.y, 0);
@@ -199,15 +226,10 @@ DetectedKeypoints GazeSolver::mostSalientKeypoints(DetectedKeypoints &keypoints)
 		[&](SalientPoint& p) { return p.getSaliencyScore() < sd; }),
 		salient_points.end());
 
-	// Return the most salient points
-	std::vector<cv::KeyPoint> output;
-	for (const auto& point : salient_points)
-		output.push_back(point.getKeyPoint());
-
-	return output;
+	return salient_points;
 }
 
-GazePoint GazeSolver::find3dPoint(unsigned screen_x, unsigned screen_y,
+GazePoint GazeSolver::find3dPoint(const ScreenPosition &screen,
                                   const SensorData &data)
 {
 	// Convert the point cloud ROS message to a PointCloud object
@@ -218,15 +240,15 @@ GazePoint GazeSolver::find3dPoint(unsigned screen_x, unsigned screen_y,
 	// If the cloud isn't organized, the PCL point can't be determined
 	if (!cloud.isOrganized())
 	{
-		ROS_WARN("Point cloud not organized - can't find point for (%u,%u)", screen_x, screen_y);
+		ROS_WARN("Point cloud not organized - can't find point for (%u,%u)", screen.x, screen.y);
 		return {0.0f, 0.0f, 0.0f};
 	}
 
 	// If the PCL point isn't finite, the 3D position can't be calculated
-	pcl::PointXYZRGB point = cloud(screen_x, screen_y);
+	pcl::PointXYZRGB point = cloud(screen.x, screen.y);
 	if (!pcl::isFinite(point))
 	{
-		ROS_WARN("PCL point is not finite - cannot calculate 3D position for (%u,%u)", screen_x, screen_y);
+		ROS_WARN("PCL point is not finite - cannot calculate 3D position for (%u,%u)", screen.x, screen.y);
 		return {0.0f, 0.0f, 0.0f};
 	}
 
@@ -248,16 +270,10 @@ GazePoint GazeSolver::find3dPoint(unsigned screen_x, unsigned screen_y,
 	float pcl_y = point.z;
 	float pcl_z = point.x;
 
-	ROS_INFO("PCL point: (%.3f,%.3f,%.3f)", pcl_x, pcl_y, pcl_z);
-
-	// Update the visualizer with the selected gaze point
-	visualizer.setGazePoint(screen_x, screen_y);
-
 	return {pcl_x, pcl_y, pcl_z};
 }
 
-GazePoint GazeSolver::find3dPoint(tf_object_detection::DetectedObject object,
-                                  const SensorData &data)
+ScreenPosition GazeSolver::toScreen(const tf_object_detection::DetectedObject &object)
 {
 	// Determine the center point of the bounding box containing the object
 	unsigned width = object.right - object.left;
@@ -265,13 +281,12 @@ GazePoint GazeSolver::find3dPoint(tf_object_detection::DetectedObject object,
 	unsigned center_x = object.left + (width / 2);
 	unsigned center_y = object.top + (height / 2);
 
-	return find3dPoint(center_x, center_y, data);
+	return {center_x, center_y};
 }
 
-GazePoint GazeSolver::find3dPoint(cv::KeyPoint keypoint,
-                                  const SensorData &data)
+ScreenPosition GazeSolver::toScreen(const cv::KeyPoint &keypoint)
 {
-	return find3dPoint(keypoint.pt.x, keypoint.pt.y, data);
+	return {keypoint.pt.x, keypoint.pt.y};
 }
 
 GazePoint GazeSolver::rotate3dPoint(const GazePoint &point,
