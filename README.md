@@ -1,8 +1,14 @@
 # BraccioVisualAttention ![CI status](https://img.shields.io/badge/build-passing-brightgreen.svg)
 
-BraccioVisualAttention 
+This project uses a [ZED stereo camera](https://www.stereolabs.com/) mounted on a [Braccio robotic arm](https://store.arduino.cc/tinkerkit-braccio) to build accurate 3D models of environments autonomously using visual attention mechanisms. This setup can detect interesting points and objects within an unknown environment, and directs the camera's gaze to focus on these points.
 
 ## Installation
+
+### Requirements
+* Ubuntu 16.04 LTS
+* ROS Kinetic
+
+### Steps
 Create a catkin workspace:
 ```
 mkdir -p ~/catkin_ws/src
@@ -18,11 +24,7 @@ cd ~/catkin_ws
 catkin_make install
 ```
 
-### Requirements
-* Ubuntu 16.04 LTS
-* ROS Kinetic
-
-## Usage
+# Usage
 
 There are 4 parts to this project:
 * **braccio_gaze_control**: This is responsible for the communication between your computer and the Braccio's Arduino.
@@ -30,7 +32,7 @@ There are 4 parts to this project:
 * **tf_object_detection**: A ROS wrapper for the [TensorFlow Object Detection API](https://github.com/tensorflow/models/tree/master/research/object_detection), allowing objects to be detected in the camera feed.
 * **zed-ros-wrapper**: A modified version [ROS wrapper for the ZED stereo camera](http://wiki.ros.org/zed-ros-wrapper), whose modification allows it to generate and save an environment mesh.
 
-### Communication with the Braccio
+## Communication with the Braccio
 To send movement commands to the Braccio, the Braccio's Arduino Yun must be first connected to the same Wi-Fi hotspot as your computer:
 * Connect to the Wi-Fi hotspot created by the Yun.
 * Visit http://arduino3.local
@@ -58,7 +60,7 @@ source devel/setup.bash
 rosrun braccio_gaze_control braccio_gaze_controller.py
 ```
 
-### Starting the ZED Camera
+## Starting the ZED Camera
 The ZED stereo camera must be started before any environment analysis can be performed:
 ```
 cd ~/catkin_ws
@@ -66,7 +68,7 @@ roslaunch zed_wrapper zed.launch
 ```
 If successful, this should report that data is being published on several ROS topics.
 
-### Starting the TensorFlow Object Detection Service
+## Starting the TensorFlow Object Detection Service
 *This is optional, as the environment analysis can be performed without object detection.*
 
 To start the object detection service:
@@ -76,7 +78,7 @@ rosrun tf_object_detection object_detection_demo.py
 ```
 If successful, a message stating that the service is ready for object detection will be displayed.
 
-### Starting the Environment Analyser
+## Starting the Environment Analyser
 To start the environment analyser:
 ```
 cd ~/catkin_ws
