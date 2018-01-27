@@ -10,7 +10,8 @@ MeshAnalyser::MeshAnalyser()
 	
 }
 
-std::vector<MeshVertex3D> MeshAnalyser::project(const Eigen::MatrixXf &perspective,
+std::vector<MeshVertex3D> MeshAnalyser::project(const zed_wrapper::Mesh &mesh,
+                                                const Eigen::MatrixXf &perspective,
                                                 const Eigen::MatrixXf &pose)
 {
 	std::vector<MeshVertex3D> output;
@@ -18,42 +19,48 @@ std::vector<MeshVertex3D> MeshAnalyser::project(const Eigen::MatrixXf &perspecti
 	// Calculate the 4x4 projection matrix from the camera and pose matrices
 	auto projection = perspective * pose.inverse();
 
-	for (const auto &vertex : mesh)
+	for (const auto &chunk : mesh.chunks)
 	{
-		// Create a 4x1 matrix which represents the current vertex's position in
-		// 3D space
-		Eigen::MatrixXf v(4,1);
-		v(0,0) = vertex.x;
-		v(1,0) = vertex.y;
-		v(2,0) = vertex.z;
-		v(3,0) = vertex.w;
-
-		// Apply the perspective projection to the vertex position
-		auto result = projection * v;
-		float x = result(0,0);
-		float y = result(1,0);
-		float z = result(2,0);
-		float w = result(3,0);
-
-		// Ensure that the positions are in front of the camera (i.e. w >= 0.0f)
-		// to avoid finding points that are behind the camera.
-		if (w >= 0.0f)
+		for (const auto &vertex : chunk.vertices)
 		{
-			output.emplace_back(x, y, z, w);
+			// Create a 4x1 matrix which represents the current vertex's position in
+			// 3D space
+			Eigen::MatrixXf v(4,1);
+			v(0,0) = vertex.x;
+			v(1,0) = vertex.y;
+			v(2,0) = vertex.z;
+			v(3,0) = 1.0f;
+
+			// Apply the perspective projection to the vertex position
+			auto result = projection * v;
+			float x = result(0,0);
+			float y = result(1,0);
+			float z = result(2,0);
+			float w = result(3,0);
+
+			// Ensure that the positions are in front of the camera (i.e. w >= 0.0f)
+			// to avoid finding points that are behind the camera.
+			if (w >= 0.0f)
+			{
+				output.emplace_back(x, y, z, w);
+			}
 		}
 	}
 
 	return output;
 }
 
-std::vector<MeshVertex2D> MeshAnalyser::projectToScreen(float width, float height)
+std::vector<MeshVertex2D> MeshAnalyser::projectToScreen(const zed_wrapper::Mesh &mesh,
+                                                        const Eigen::MatrixXf &perspective,
+                                                        const Eigen::MatrixXf &pose,
+                                                        float width, float height)
 {
 	std::vector<MeshVertex2D> output;
 
 	float half_width = width / 2.0f;
 	float half_height = height / 2.0f;
 
-	std::vector<MeshVertex3D> projected_vertices = project(perspective, pose);
+	std::vector<MeshVertex3D> projected_vertices = project(mesh, perspective, pose);
 	for (const auto &vertex : projected_vertices)
 	{
 		// Convert the 3D position to the 2D screen position
@@ -63,26 +70,6 @@ std::vector<MeshVertex2D> MeshAnalyser::projectToScreen(float width, float heigh
 	}
 
 	return output;
-}
-
-void MeshAnalyser::setPerspective(const Eigen::MatrixXf &perspective)
-{
-	this->perspective = perspective;
-}
-
-void MeshAnalyser::setPose(const Eigen::MatrixXf &pose)
-{
-	this-> pose = pose;
-}
-
-void MeshAnalyser::addVertex(float x, float y, float z)
-{
-	mesh.emplace_back(x, y, z, 1.0f);
-}
-
-void MeshAnalyser::clearMesh()
-{
-	mesh.clear();
 }
 
 Eigen::MatrixXf MeshAnalyser::getRotationAsTransform(float x, float y, float z)
@@ -153,7 +140,9 @@ Eigen::MatrixXf MeshAnalyser::getRotationAsTransform(float x, float y, float z)
 	return (x_transform * y_transform * z_transform);
 }
 
-Rotation MeshAnalyser::findLesserMappedSection()
+Rotation MeshAnalyser::findLesserMappedSection(const zed_wrapper::Mesh &mesh,
+                                               const Eigen::MatrixXf &perspective,
+                                               const Eigen::MatrixXf &pose)
 {
 	// Look at the entire mesh by continuously rotating the pose matrix so that
 	// every possible viewing angle has been achieved. A lesser-mapped section
@@ -183,7 +172,7 @@ Rotation MeshAnalyser::findLesserMappedSection()
 			float y_angle = y * ANGULAR_STEP;
 			Eigen::MatrixXf rot_pose = pose * getRotationAsTransform(x_angle, y_angle, 0.0f);
 
-			size_t current_vertices = project(perspective, rot_pose).size();
+			size_t current_vertices = project(mesh, perspective, rot_pose).size();
 			if (current_vertices < least_vertices)
 			{
 				least_vertices = current_vertices;

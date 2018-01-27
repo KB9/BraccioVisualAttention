@@ -7,6 +7,9 @@
 // Eigen
 #include <Eigen/Core>
 
+// ZED mesh
+#include "zed_wrapper/Mesh.h"
+
 struct MeshVertex3D
 {
 	MeshVertex3D(float x, float y, float z, float w)
@@ -41,22 +44,18 @@ class MeshAnalyser
 public:
 	MeshAnalyser();
 
-	std::vector<MeshVertex2D> projectToScreen(float width, float height);
+	std::vector<MeshVertex2D> projectToScreen(const zed_wrapper::Mesh &mesh,
+	                                          const Eigen::MatrixXf &perspective,
+	                                          const Eigen::MatrixXf &pose,
+	                                          float width, float height);
 
-	void setPerspective(const Eigen::MatrixXf &camera);
-	void setPose(const Eigen::MatrixXf &pose);
-
-	void addVertex(float x, float y, float z);
-	void clearMesh();
-
-	Rotation findLesserMappedSection();
+	Rotation findLesserMappedSection(const zed_wrapper::Mesh &mesh,
+	                                 const Eigen::MatrixXf &perspective,
+	                                 const Eigen::MatrixXf &pose);
 
 private:
-	std::vector<MeshVertex3D> mesh;
-	Eigen::MatrixXf perspective;
-	Eigen::MatrixXf pose;
-
-	std::vector<MeshVertex3D> project(const Eigen::MatrixXf &perspective,
+	std::vector<MeshVertex3D> project(const zed_wrapper::Mesh &mesh,
+	                                  const Eigen::MatrixXf &perspective,
 	                                  const Eigen::MatrixXf &pose);
 
 	Eigen::MatrixXf getRotationAsTransform(float x, float y, float z);

@@ -65,22 +65,6 @@ GazePoint GazeSolver::next(const SensorData &data)
 	for (const auto &kp : keypoints)
 		visualizer.drawKeyPoint(kp);
 
-	// Set the perspective and pose matrices used to project the mesh vertices
-	const Eigen::MatrixXf perspective = toEigenMatrix(data.mesh.perspective);
-	const Eigen::MatrixXf pose = toEigenMatrix(data.mesh.pose);
-	mesh_analyser.setPerspective(perspective);
-	mesh_analyser.setPose(pose);
-
-	// Register all mesh vertices with the mesh analyser
-	mesh_analyser.clearMesh();
-	for (auto &chunk : data.mesh.chunks)
-	{
-		for (auto &v : chunk.vertices)
-		{
-			mesh_analyser.addVertex(v.x, v.y, v.z);
-		}
-	}
-
 	/*
 	PLAN FOR SOLVER:
 	When the mapping starts, try and locate salient points and objects in the
@@ -120,12 +104,18 @@ GazePoint GazeSolver::next(const SensorData &data)
 	// at an under-mapped area of the environment mesh
 	ROS_INFO("Focusing gaze on under-mapped mesh section.");
 
+	// Set the perspective and pose matrices used to project the mesh vertices
+	const Eigen::MatrixXf perspective = toEigenMatrix(data.mesh.perspective);
+	const Eigen::MatrixXf pose = toEigenMatrix(data.mesh.pose);
+
 	// Find the angles required to view an undermapped section of the mesh
 	// Use a fake distant point and rotate it according to the mesh analysis
 	// angles to focus gaze on it
 	// NOTE: Mesh analysis takes a REALLY long time
 	GazePoint fake_point{0.0f, 0.0f, 5.0f};
-	Rotation rot = mesh_analyser.findLesserMappedSection();
+	Rotation rot = mesh_analyser.findLesserMappedSection(data.mesh,
+	                                                     perspective,
+	                                                     pose);
 	return rotate3dPoint(fake_point, rot.x, rot.y, rot.z);
 }
 
