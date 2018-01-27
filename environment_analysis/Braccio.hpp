@@ -9,6 +9,12 @@
 // Kinematics
 #include "kinematics/BraccioKinematics.hpp"
 
+enum class ReferenceFrame
+{
+	Effector,
+	World
+};
+
 class Braccio
 {
 public:
@@ -19,10 +25,10 @@ public:
 	void initGazeFeedback(ros::NodeHandle &nh,
 	                      void (*subscriberCallback)(std_msgs::Bool));
 
-	bool lookAt(float x, float y, float z);
+	bool lookAt(float x, float y, float z,
+	            ReferenceFrame frame = ReferenceFrame::World);
 	Pos3d toBaseRelative(float x, float y, float z);
 
-	// TESTING
 	float getEffectorX();
 	float getEffectorY();
 	float getEffectorZ();

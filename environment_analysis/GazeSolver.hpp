@@ -57,10 +57,6 @@ public:
 
 	GazePoint next(const SensorData &data);
 
-	GazePoint alignPoint(const GazePoint &point,
-                         float effector_x_angle, float effector_y_angle,
-                         float effector_z_angle);
-
 	void showVisualization(const sensor_msgs::Image &img_msg);
 
 private:

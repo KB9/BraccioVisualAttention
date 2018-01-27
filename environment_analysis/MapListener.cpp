@@ -46,19 +46,13 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 	// NOTE: The gaze point solver works with a RHS-with-Y-up coordinate system
 	GazePoint gaze_point = gaze_solver->next(gaze_data);
 
-	// Rotate the gaze point after swapping the axes so that the coordinate system
-	// matches that of the Braccio kinematics
-	GazePoint braccio_gaze_point = gaze_solver->alignPoint({gaze_point.z, -gaze_point.x, gaze_point.y},
-	                                                       0.0f, angle_eff, -angle_base);
-
-	// Add the effector position to the gaze point
+	// Swap the RHS-with-Y-up coordinate scheme into the Braccio kinematic's
+	// LHS-with-Z-up coordinate scheme
 	const float M_TO_CM = 100.0f;
-	float braccio_x = (braccio_gaze_point.x * M_TO_CM) + braccio.getEffectorX();
-	float braccio_y = (braccio_gaze_point.y * M_TO_CM) + braccio.getEffectorY();
-	float braccio_z = (braccio_gaze_point.z * M_TO_CM) + braccio.getEffectorZ();
-
-	// Send the coordinates to the Braccio
-	braccio.lookAt(braccio_x, braccio_y, braccio_z);
+	float braccio_x = gaze_point.z * M_TO_CM;
+	float braccio_y = -gaze_point.x * M_TO_CM;
+	float braccio_z = gaze_point.y * M_TO_CM;
+	braccio.lookAt(braccio_x, braccio_y, braccio_z, ReferenceFrame::Effector);
 }
 
 void imageCallback(const sensor_msgs::Image &img_msg)

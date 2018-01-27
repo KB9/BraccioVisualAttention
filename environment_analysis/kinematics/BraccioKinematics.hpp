@@ -72,8 +72,6 @@ class BraccioKinematics
 public:
 	bool lookAt(float x, float y, float z, BraccioJointAngles &braccio_angles);
 	Pos3d getEffectorPos3d();
-	Pos3d toBaseRelative(float x, float y, float z);
-	Pos3d applyAxisRotation(float rad_z, float rad_y, float x, float y, float z);
 
 	void setJointAngles(const BraccioJointAngles &angles);
 

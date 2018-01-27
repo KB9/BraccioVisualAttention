@@ -110,10 +110,12 @@ GazePoint GazeSolver::next(const SensorData &data)
 	{
 		ROS_INFO("Focusing gaze on under-mapped mesh section.");
 		// Find the angles required to view an undermapped section of the mesh
-		// NOTE: This currently takes a REALLY long time, so disabled for now
+		// Use a fake distant point and rotate it according to the mesh analysis
+		// angles to focus gaze on it
+		// NOTE: Mesh analysis takes a REALLY long time
+		// GazePoint fake_point{0.0f, 0.0f, 5.0f};
 		// Rotation rot = mesh_analyser.findLesserMappedSection();
-		// ROS_INFO("Required: (%.3f,%.3f,%.3f)", rot.x, rot.y, rot.z);
-		return {0.0f, 0.0f, 0.0f}; // TODO: Make this return a point
+		// return alignPoint(fake_point, rot.x, rot.y, rot.z);
 	}
 }
 
@@ -174,7 +176,7 @@ DetectedObjects GazeSolver::detectObjects(const sensor_msgs::Image &img_msg)
 	}
 	else
 	{
-		ROS_WARN("Did not get a response from tf_object_detection service");
+		//ROS_WARN("Did not get a response from tf_object_detection service");
 	}
 
 	return detected_objects;
@@ -246,6 +248,8 @@ GazePoint GazeSolver::find3dPoint(unsigned screen_x, unsigned screen_y,
 	float pcl_y = point.z;
 	float pcl_z = point.x;
 
+	ROS_INFO("PCL point: (%.3f,%.3f,%.3f)", pcl_x, pcl_y, pcl_z);
+
 	// Update the visualizer with the selected gaze point
 	visualizer.setGazePoint(screen_x, screen_y);
 
@@ -268,54 +272,4 @@ GazePoint GazeSolver::find3dPoint(cv::KeyPoint keypoint,
                                   const SensorData &data)
 {
 	return find3dPoint(keypoint.pt.x, keypoint.pt.y, data);
-}
-
-GazePoint GazeSolver::alignPoint(const GazePoint &point,
-                                 float effector_x_angle, float effector_y_angle,
-                                 float effector_z_angle)
-{
-	Eigen::MatrixXf x_rotate(3,3);
-	x_rotate(0,0) = 1;
-	x_rotate(0,1) = 0;
-	x_rotate(0,2) = 0;
-	x_rotate(1,0) = 0;
-	x_rotate(1,1) = cosf(effector_x_angle);
-	x_rotate(1,2) = sinf(effector_x_angle);
-	x_rotate(2,0) = 0;
-	x_rotate(2,1) = -sinf(effector_x_angle);
-	x_rotate(2,2) = cosf(effector_x_angle);
-
-	Eigen::MatrixXf y_rotate(3,3);
-	y_rotate(0,0) = cosf(effector_y_angle);
-	y_rotate(0,1) = 0;
-	y_rotate(0,2) = -sinf(effector_y_angle);
-	y_rotate(1,0) = 0;
-	y_rotate(1,1) = 1;
-	y_rotate(1,2) = 0;
-	y_rotate(2,0) = sinf(effector_y_angle);
-	y_rotate(2,1) = 0;
-	y_rotate(2,2) = cosf(effector_y_angle);
-
-	Eigen::MatrixXf z_rotate(3,3);
-	z_rotate(0,0) = cosf(effector_z_angle);
-	z_rotate(0,1) = sinf(effector_z_angle);
-	z_rotate(0,2) = 0;
-	z_rotate(1,0) = -sinf(effector_z_angle);
-	z_rotate(1,1) = cosf(effector_z_angle);
-	z_rotate(1,2) = 0;
-	z_rotate(2,0) = 0;
-	z_rotate(2,1) = 0;
-	z_rotate(2,2) = 1;
-
-	Eigen::MatrixXf pos(3,1);
-	pos(0,0) = point.x;
-	pos(1,0) = point.y;
-	pos(2,0) = point.z;
-
-	// First rotate around Y then around Z
-	Eigen::MatrixXf result = z_rotate * (y_rotate * pos);
-	float x = result(0,0);
-	float y = result(1,0);
-	float z = result(2,0);
-	return {x, y, z};
 }
