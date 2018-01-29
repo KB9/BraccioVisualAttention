@@ -49,9 +49,11 @@ Eigen::MatrixXf toEigenMatrix(const zed_wrapper::Matrix4f &msg)
 	return matrix;
 }
 
-GazeSolver::GazeSolver(const ros::ServiceClient &obj_detect_client)
+GazeSolver::GazeSolver(const ros::ServiceClient &obj_detect_client,
+                       float diag_fov)
 {
 	this->obj_detect_client = obj_detect_client;
+	this->diag_fov = diag_fov;
 }
 
 GazePoint GazeSolver::next(const SensorData &data)
@@ -87,13 +89,11 @@ GazePoint GazeSolver::next(const SensorData &data)
 		auto screen_pos = toScreen(objects[0]);
 		GazePoint gaze_point = find3dPoint(screen_pos, data);
 		objects.erase(objects.begin());
-		if (gaze_point.x > 0 || gaze_point.y > 0 || gaze_point.z > 0)
-		{
-			ROS_INFO("Focusing gaze on detected object.");
-			gaussian_map.add(gaze_point.x, gaze_point.y, gaze_point.z, 1000);
-			visualizer.setGazePoint(screen_pos.x, screen_pos.y);
-			return gaze_point;
-		}
+
+		ROS_INFO("Focusing gaze on detected object.");
+		gaussian_map.add(gaze_point.x, gaze_point.y, gaze_point.z, 1000);
+		visualizer.setGazePoint(screen_pos.x, screen_pos.y);
+		return gaze_point;
 	}
 
 	// Then try to look at any salient keypoints next
@@ -108,8 +108,7 @@ GazePoint GazeSolver::next(const SensorData &data)
 		GazePoint gaze_point = find3dPoint(screen_pos, data);
 		float saliency = keypoint.getSaliencyScore();
 		float gaussian = gaussian_map.calculate(gaze_point.x, gaze_point.y, gaze_point.z);
-		if (gaze_point.x > 0 && gaze_point.y > 0 && gaze_point.z > 0 &&
-		    saliency >= max_saliency && gaussian <= min_gaussian)
+		if (saliency >= max_saliency && gaussian <= min_gaussian)
 		{
 			chosen_gaze_point = gaze_point;
 			max_saliency = saliency;
@@ -234,14 +233,19 @@ GazePoint GazeSolver::find3dPoint(const ScreenPosition &screen,
 {
 	// Convert the point cloud ROS message to a PointCloud object
 	PointCloud cloud;
-	if (data.cloud == nullptr) return {0.0f, 0.0f, 0.0f}; // TODO: TEMPORARY FIX
+	if (data.cloud == nullptr)
+	{
+		return createFakePoint(screen,
+		                       diag_fov, data.image.width, data.image.height);
+	}
 	pcl::fromROSMsg(*(data.cloud), cloud);
 
 	// If the cloud isn't organized, the PCL point can't be determined
 	if (!cloud.isOrganized())
 	{
 		ROS_WARN("Point cloud not organized - can't find point for (%u,%u)", screen.x, screen.y);
-		return {0.0f, 0.0f, 0.0f};
+		return createFakePoint(screen,
+		                       diag_fov, data.image.width, data.image.height);
 	}
 
 	// If the PCL point isn't finite, the 3D position can't be calculated
@@ -249,7 +253,8 @@ GazePoint GazeSolver::find3dPoint(const ScreenPosition &screen,
 	if (!pcl::isFinite(point))
 	{
 		ROS_WARN("PCL point is not finite - cannot calculate 3D position for (%u,%u)", screen.x, screen.y);
-		return {0.0f, 0.0f, 0.0f};
+		return createFakePoint(screen,
+		                       diag_fov, data.image.width, data.image.height);
 	}
 
 	/*
@@ -287,6 +292,27 @@ ScreenPosition GazeSolver::toScreen(const tf_object_detection::DetectedObject &o
 ScreenPosition GazeSolver::toScreen(const cv::KeyPoint &keypoint)
 {
 	return {keypoint.pt.x, keypoint.pt.y};
+}
+
+GazePoint GazeSolver::createFakePoint(const ScreenPosition &screen,
+                                      float diag_fov,
+                                      unsigned screen_width, unsigned screen_height)
+{
+	float diag_length = std::sqrt(std::pow(screen_width,2) + std::pow(screen_height,2));
+	float rads_per_pixel = diag_fov / diag_length;
+
+	unsigned screen_cx = screen_width / 2;
+	unsigned screen_cy = screen_height / 2;
+
+	unsigned angle_x = (screen.x - screen_cx) * rads_per_pixel;
+	unsigned angle_y = (screen.y - screen_cy) * rads_per_pixel;
+
+	GazePoint fake_point;
+	fake_point.z = 5.0f;
+	fake_point.x = fake_point.z * tanf(angle_x);
+	fake_point.y = fake_point.z * tanf(angle_y);
+
+	return fake_point;
 }
 
 GazePoint GazeSolver::rotate3dPoint(const GazePoint &point,

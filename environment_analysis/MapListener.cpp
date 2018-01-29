@@ -84,7 +84,7 @@ int main(int argc, char **argv)
 	ros::ServiceClient client = node_handle.serviceClient<tf_object_detection::ObjectDetection>("object_detection");
 
 	// NEW
-	gaze_solver = std::make_unique<GazeSolver>(client);
+	gaze_solver = std::make_unique<GazeSolver>(client, 110.0f);
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
 	braccio.lookAt(5.0f, 5.0f, 20.0f);

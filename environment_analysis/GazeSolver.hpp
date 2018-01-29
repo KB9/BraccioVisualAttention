@@ -58,17 +58,19 @@ struct GazePoint
 class GazeSolver
 {
 public:
-	GazeSolver(const ros::ServiceClient &obj_detect_client);
+	GazeSolver(const ros::ServiceClient &obj_detect_client, float diag_fov);
 
 	GazePoint next(const SensorData &data);
 
 	void showVisualization(const sensor_msgs::Image &img_msg);
 
 private:
+	float diag_fov;
+	ros::ServiceClient obj_detect_client;
+
 	GaussianMap gaussian_map;
 	MeshAnalyser mesh_analyser;
 	GazeVisualizer visualizer;
-	ros::ServiceClient obj_detect_client;
 
 	DetectedKeypoints detectKeypoints();
 	DetectedObjects detectObjects(const sensor_msgs::Image &img_msg);
@@ -77,6 +79,9 @@ private:
 	GazePoint find3dPoint(const ScreenPosition &screen, const SensorData &data);
 	ScreenPosition toScreen(const tf_object_detection::DetectedObject &object);
 	ScreenPosition toScreen(const cv::KeyPoint &keypoint);
+
+	GazePoint createFakePoint(const ScreenPosition &screen, float diag_fov,
+	                          unsigned screen_width, unsigned screen_height);
 
 	GazePoint rotate3dPoint(const GazePoint &point,
 	                        float x_angle, float y_angle, float z_angle);
