@@ -98,6 +98,7 @@ GazePoint GazeSolver::next(const SensorData &data)
 		ROS_INFO("Focusing gaze on detected object.");
 		gaussian_map.add(gaze_point.x, gaze_point.y, gaze_point.z, 1000);
 		visualizer.setGazePoint(screen_pos.x, screen_pos.y);
+		if (gaze_point.is_estimate) ROS_WARN("Using estimated gaze point!");
 		return gaze_point;
 	}
 
@@ -111,6 +112,7 @@ GazePoint GazeSolver::next(const SensorData &data)
 		ROS_INFO("Focusing gaze on detected salient point.");
 		gaussian_map.add(gaze_point.x, gaze_point.y, gaze_point.z, 1000);
 		visualizer.setGazePoint(keypoint.getCameraX(), keypoint.getCameraY());
+		if (gaze_point.is_estimate) ROS_WARN("Using estimated gaze point!");
 		return gaze_point;
 	}
 
@@ -126,7 +128,7 @@ GazePoint GazeSolver::next(const SensorData &data)
 	// Use a fake distant point and rotate it according to the mesh analysis
 	// angles to focus gaze on it
 	// NOTE: Mesh analysis takes a REALLY long time
-	GazePoint fake_point{0.0f, 0.0f, 5.0f};
+	GazePoint fake_point{0.0f, 0.0f, 5.0f, true};
 	Rotation rot = mesh_analyser.findLesserMappedSection(data.mesh,
 	                                                     perspective,
 	                                                     pose);
@@ -246,17 +248,9 @@ GazePoint GazeSolver::find3dPoint(const ScreenPosition &screen,
                                   const SensorData &data,
                                   const PointCloud &cloud)
 {
-	// If the cloud is non-existent, the PCL point can't be determined
-	if (data.cloud == nullptr)
+	// If the cloud is non-existent or disorganized, the PCL point can't be determined
+	if (data.cloud == nullptr || !cloud.isOrganized())
 	{
-		return createFakePoint(screen,
-		                       diag_fov, data.image.width, data.image.height);
-	}
-
-	// If the cloud isn't organized, the PCL point can't be determined
-	if (!cloud.isOrganized())
-	{
-		ROS_WARN("Point cloud not organized - can't find point for (%u,%u)", screen.x, screen.y);
 		return createFakePoint(screen,
 		                       diag_fov, data.image.width, data.image.height);
 	}
@@ -265,7 +259,6 @@ GazePoint GazeSolver::find3dPoint(const ScreenPosition &screen,
 	pcl::PointXYZRGB point = cloud(screen.x, screen.y);
 	if (!pcl::isFinite(point))
 	{
-		ROS_WARN("PCL point is not finite - cannot calculate 3D position for (%u,%u)", screen.x, screen.y);
 		return createFakePoint(screen,
 		                       diag_fov, data.image.width, data.image.height);
 	}
@@ -288,7 +281,7 @@ GazePoint GazeSolver::find3dPoint(const ScreenPosition &screen,
 	float pcl_y = point.z;
 	float pcl_z = point.x;
 
-	return {pcl_x, pcl_y, pcl_z};
+	return {pcl_x, pcl_y, pcl_z, false};
 }
 
 ScreenPosition GazeSolver::toScreen(const tf_object_detection::DetectedObject &object)
@@ -324,6 +317,7 @@ GazePoint GazeSolver::createFakePoint(const ScreenPosition &screen,
 	fake_point.z = 20.0f;
 	fake_point.x = fake_point.z * tanf(angle_x);
 	fake_point.y = fake_point.z * tanf(angle_y);
+	fake_point.is_estimate = true;
 
 	return fake_point;
 }

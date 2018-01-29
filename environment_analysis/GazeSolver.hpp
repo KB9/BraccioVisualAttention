@@ -53,6 +53,7 @@ struct ScreenPosition
 struct GazePoint
 {
 	float x, y, z;
+	bool is_estimate;
 };
 
 class GazeSolver
