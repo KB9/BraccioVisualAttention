@@ -2,6 +2,7 @@
 
 // Infra
 #include <limits>
+#include <utility>
 
 // OpenCV
 #include <opencv2/opencv.hpp>
@@ -84,11 +85,11 @@ GazePoint GazeSolver::next(const SensorData &data)
 	gaussian_map.decay(5.0f);
 
 	// Try to look at any objects first
+	// TODO: Don't look at the object if the Gaussian result is too high
 	while (!objects.empty())
 	{
 		auto screen_pos = toScreen(objects[0]);
 		GazePoint gaze_point = find3dPoint(screen_pos, data);
-		objects.erase(objects.begin());
 
 		ROS_INFO("Focusing gaze on detected object.");
 		gaussian_map.add(gaze_point.x, gaze_point.y, gaze_point.z, 1000);
@@ -96,34 +97,17 @@ GazePoint GazeSolver::next(const SensorData &data)
 		return gaze_point;
 	}
 
-	// Then try to look at any salient keypoints next
-	GazePoint chosen_gaze_point;
-	float max_saliency = std::numeric_limits<float>::min();
-	float min_gaussian = std::numeric_limits<float>::max();
-	bool chosen = false;
-	unsigned screen_x, screen_y;
-	for (const auto &keypoint : keypoints)
+	// Then try to look at the best salient keypoint next
+	if (!keypoints.empty())
 	{
-		auto screen_pos = toScreen(keypoint.getKeyPoint());
-		GazePoint gaze_point = find3dPoint(screen_pos, data);
-		float saliency = keypoint.getSaliencyScore();
-		float gaussian = gaussian_map.calculate(gaze_point.x, gaze_point.y, gaze_point.z);
-		if (saliency >= max_saliency && gaussian <= min_gaussian)
-		{
-			chosen_gaze_point = gaze_point;
-			max_saliency = saliency;
-			min_gaussian = gaussian;
-			chosen = true;
-			screen_x = screen_pos.x;
-			screen_y = screen_pos.y;
-		}
-	}
-	if (chosen)
-	{
-		ROS_INFO("Focusing gaze on detected salient point (S=%.3f, G=%.3f).", max_saliency, min_gaussian);
-		gaussian_map.add(chosen_gaze_point.x, chosen_gaze_point.y, chosen_gaze_point.z, 1000);
-		visualizer.setGazePoint(screen_x, screen_y);
-		return chosen_gaze_point;
+		std::pair<SalientPoint, GazePoint> best = findBestKeyPoint(keypoints, data);
+		SalientPoint keypoint = best.first;
+		GazePoint gaze_point = best.second;
+
+		ROS_INFO("Focusing gaze on detected salient point.");
+		gaussian_map.add(gaze_point.x, gaze_point.y, gaze_point.z, 1000);
+		visualizer.setGazePoint(keypoint.getCameraX(), keypoint.getCameraY());
+		return gaze_point;
 	}
 
 	// If neither objects or keypoints could be looked at, attempt to look
@@ -226,6 +210,31 @@ DetectedKeypoints GazeSolver::mostSalientKeypoints(std::vector<cv::KeyPoint> &ke
 		salient_points.end());
 
 	return salient_points;
+}
+
+std::pair<SalientPoint, GazePoint> GazeSolver::findBestKeyPoint(const DetectedKeypoints &keypoints,
+                                                                const SensorData &data)
+{
+	float max_saliency = std::numeric_limits<float>::min();
+	float min_gaussian = std::numeric_limits<float>::max();
+	SalientPoint best_keypoint = keypoints[0];
+	GazePoint best_gaze_point;
+	for (const auto &keypoint : keypoints)
+	{
+		auto screen_pos = toScreen(keypoint.getKeyPoint());
+		GazePoint gaze_point = find3dPoint(screen_pos, data);
+		float saliency = keypoint.getSaliencyScore();
+		float gaussian = gaussian_map.calculate(gaze_point.x, gaze_point.y, gaze_point.z);
+		if (saliency >= max_saliency && gaussian <= min_gaussian)
+		{
+			best_keypoint = keypoint;
+			best_gaze_point = gaze_point;
+			max_saliency = saliency;
+			min_gaussian = gaussian;
+		}
+	}
+	ROS_INFO("Salient point info: SALIENCY=%.3f, GAUSSIAN=%.3f", max_saliency, min_gaussian);
+	return {best_keypoint, best_gaze_point};
 }
 
 GazePoint GazeSolver::find3dPoint(const ScreenPosition &screen,

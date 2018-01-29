@@ -76,6 +76,9 @@ private:
 	DetectedObjects detectObjects(const sensor_msgs::Image &img_msg);
 	DetectedKeypoints mostSalientKeypoints(std::vector<cv::KeyPoint> &keypoints);
 
+	std::pair<SalientPoint, GazePoint> findBestKeyPoint(const DetectedKeypoints &keypoints,
+	                                                    const SensorData &data);
+
 	GazePoint find3dPoint(const ScreenPosition &screen, const SensorData &data);
 	ScreenPosition toScreen(const tf_object_detection::DetectedObject &object);
 	ScreenPosition toScreen(const cv::KeyPoint &keypoint);
