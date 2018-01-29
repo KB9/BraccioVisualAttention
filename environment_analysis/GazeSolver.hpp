@@ -77,9 +77,11 @@ private:
 	DetectedKeypoints mostSalientKeypoints(std::vector<cv::KeyPoint> &keypoints);
 
 	std::pair<SalientPoint, GazePoint> findBestKeyPoint(const DetectedKeypoints &keypoints,
-	                                                    const SensorData &data);
+	                                                    const SensorData &data,
+	                                                    const PointCloud &cloud);
 
-	GazePoint find3dPoint(const ScreenPosition &screen, const SensorData &data);
+	GazePoint find3dPoint(const ScreenPosition &screen, const SensorData &data,
+	                      const PointCloud &cloud);
 	ScreenPosition toScreen(const tf_object_detection::DetectedObject &object);
 	ScreenPosition toScreen(const cv::KeyPoint &keypoint);
 

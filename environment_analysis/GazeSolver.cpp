@@ -82,6 +82,10 @@ GazePoint GazeSolver::next(const SensorData &data)
 	finitum until the user desires to stop mapping.
 	*/
 
+	// Convert the PCL ROS msg into a PointCloud before pulling points from it
+	PointCloud cloud;
+	pcl::fromROSMsg(*(data.cloud), cloud);
+
 	gaussian_map.decay(5.0f);
 
 	// Try to look at any objects first
@@ -89,7 +93,7 @@ GazePoint GazeSolver::next(const SensorData &data)
 	while (!objects.empty())
 	{
 		auto screen_pos = toScreen(objects[0]);
-		GazePoint gaze_point = find3dPoint(screen_pos, data);
+		GazePoint gaze_point = find3dPoint(screen_pos, data, cloud);
 
 		ROS_INFO("Focusing gaze on detected object.");
 		gaussian_map.add(gaze_point.x, gaze_point.y, gaze_point.z, 1000);
@@ -100,7 +104,7 @@ GazePoint GazeSolver::next(const SensorData &data)
 	// Then try to look at the best salient keypoint next
 	if (!keypoints.empty())
 	{
-		std::pair<SalientPoint, GazePoint> best = findBestKeyPoint(keypoints, data);
+		std::pair<SalientPoint, GazePoint> best = findBestKeyPoint(keypoints, data, cloud);
 		SalientPoint keypoint = best.first;
 		GazePoint gaze_point = best.second;
 
@@ -213,7 +217,8 @@ DetectedKeypoints GazeSolver::mostSalientKeypoints(std::vector<cv::KeyPoint> &ke
 }
 
 std::pair<SalientPoint, GazePoint> GazeSolver::findBestKeyPoint(const DetectedKeypoints &keypoints,
-                                                                const SensorData &data)
+                                                                const SensorData &data,
+                                                                const PointCloud &cloud)
 {
 	float max_saliency = std::numeric_limits<float>::min();
 	float min_gaussian = std::numeric_limits<float>::max();
@@ -222,7 +227,7 @@ std::pair<SalientPoint, GazePoint> GazeSolver::findBestKeyPoint(const DetectedKe
 	for (const auto &keypoint : keypoints)
 	{
 		auto screen_pos = toScreen(keypoint.getKeyPoint());
-		GazePoint gaze_point = find3dPoint(screen_pos, data);
+		GazePoint gaze_point = find3dPoint(screen_pos, data, cloud);
 		float saliency = keypoint.getSaliencyScore();
 		float gaussian = gaussian_map.calculate(gaze_point.x, gaze_point.y, gaze_point.z);
 		if (saliency >= max_saliency && gaussian <= min_gaussian)
@@ -238,18 +243,15 @@ std::pair<SalientPoint, GazePoint> GazeSolver::findBestKeyPoint(const DetectedKe
 }
 
 GazePoint GazeSolver::find3dPoint(const ScreenPosition &screen,
-                                  const SensorData &data)
+                                  const SensorData &data,
+                                  const PointCloud &cloud)
 {
-	// Convert the point cloud ROS message to a PointCloud object
-	// TODO: Converting the ROS msg to the PCL is the biggest slowdown here. Do
-	// it once only!
-	PointCloud cloud;
+	// If the cloud is non-existent, the PCL point can't be determined
 	if (data.cloud == nullptr)
 	{
 		return createFakePoint(screen,
 		                       diag_fov, data.image.width, data.image.height);
 	}
-	pcl::fromROSMsg(*(data.cloud), cloud);
 
 	// If the cloud isn't organized, the PCL point can't be determined
 	if (!cloud.isOrganized())
