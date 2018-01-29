@@ -241,6 +241,8 @@ GazePoint GazeSolver::find3dPoint(const ScreenPosition &screen,
                                   const SensorData &data)
 {
 	// Convert the point cloud ROS message to a PointCloud object
+	// TODO: Converting the ROS msg to the PCL is the biggest slowdown here. Do
+	// it once only!
 	PointCloud cloud;
 	if (data.cloud == nullptr)
 	{
@@ -313,11 +315,11 @@ GazePoint GazeSolver::createFakePoint(const ScreenPosition &screen,
 	unsigned screen_cx = screen_width / 2;
 	unsigned screen_cy = screen_height / 2;
 
-	unsigned angle_x = (screen.x - screen_cx) * rads_per_pixel;
-	unsigned angle_y = (screen.y - screen_cy) * rads_per_pixel;
+	float angle_x = (screen_cx - screen.x) * rads_per_pixel;
+	float angle_y = (screen_cy - screen.y) * rads_per_pixel;
 
 	GazePoint fake_point;
-	fake_point.z = 5.0f;
+	fake_point.z = 20.0f;
 	fake_point.x = fake_point.z * tanf(angle_x);
 	fake_point.y = fake_point.z * tanf(angle_y);
 
