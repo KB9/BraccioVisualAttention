@@ -24,8 +24,8 @@
 // SalientPoint
 #include "SalientPoint.hpp"
 
-// GaussianMap
-#include "GaussianMap.hpp"
+// FocusMapper
+#include "FocusMapper.hpp"
 
 // GazeVisualizer
 #include "GazeVisualizer.hpp"
@@ -59,7 +59,9 @@ struct GazePoint
 class GazeSolver
 {
 public:
-	GazeSolver(const ros::ServiceClient &obj_detect_client, float diag_fov);
+	GazeSolver(const ros::ServiceClient &obj_detect_client,
+	           std::function<GazePoint(const GazePoint)>,
+	           float diag_fov);
 
 	GazePoint next(const SensorData &data);
 
@@ -68,8 +70,9 @@ public:
 private:
 	float diag_fov;
 	ros::ServiceClient obj_detect_client;
+	std::function<GazePoint(const GazePoint)> local_to_world;
 
-	GaussianMap gaussian_map;
+	FocusMapper focus_mapper;
 	MeshAnalyser mesh_analyser;
 	GazeVisualizer visualizer;
 
@@ -91,6 +94,9 @@ private:
 
 	GazePoint rotate3dPoint(const GazePoint &point,
 	                        float x_angle, float y_angle, float z_angle);
+
+	float calculateFocusPenalty(const GazePoint &point);
+	void addFocusPenalty(const GazePoint &point);
 };
 
 #endif // _GAZE_SOLVER_H_

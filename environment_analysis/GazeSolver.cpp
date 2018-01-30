@@ -51,9 +51,11 @@ Eigen::MatrixXf toEigenMatrix(const zed_wrapper::Matrix4f &msg)
 }
 
 GazeSolver::GazeSolver(const ros::ServiceClient &obj_detect_client,
+                       std::function<GazePoint(const GazePoint)> local_to_world,
                        float diag_fov)
 {
 	this->obj_detect_client = obj_detect_client;
+	this->local_to_world = local_to_world; 
 	this->diag_fov = diag_fov;
 }
 
@@ -86,7 +88,7 @@ GazePoint GazeSolver::next(const SensorData &data)
 	PointCloud cloud;
 	pcl::fromROSMsg(*(data.cloud), cloud);
 
-	gaussian_map.decay(5.0f);
+	focus_mapper.decay(5.0f);
 
 	// Try to look at any objects first
 	// TODO: Don't look at the object if the Gaussian result is too high
@@ -96,7 +98,7 @@ GazePoint GazeSolver::next(const SensorData &data)
 		GazePoint gaze_point = find3dPoint(screen_pos, data, cloud);
 
 		ROS_INFO("Focusing gaze on detected object.");
-		gaussian_map.add(gaze_point.x, gaze_point.y, gaze_point.z, 1000);
+		addFocusPenalty(gaze_point);
 		visualizer.setGazePoint(screen_pos.x, screen_pos.y);
 		if (gaze_point.is_estimate) ROS_WARN("Using estimated gaze point!");
 		return gaze_point;
@@ -110,7 +112,7 @@ GazePoint GazeSolver::next(const SensorData &data)
 		GazePoint gaze_point = best.second;
 
 		ROS_INFO("Focusing gaze on detected salient point.");
-		gaussian_map.add(gaze_point.x, gaze_point.y, gaze_point.z, 1000);
+		addFocusPenalty(gaze_point);
 		visualizer.setGazePoint(keypoint.getCameraX(), keypoint.getCameraY());
 		if (gaze_point.is_estimate) ROS_WARN("Using estimated gaze point!");
 		return gaze_point;
@@ -231,7 +233,7 @@ std::pair<SalientPoint, GazePoint> GazeSolver::findBestKeyPoint(const DetectedKe
 		auto screen_pos = toScreen(keypoint.getKeyPoint());
 		GazePoint gaze_point = find3dPoint(screen_pos, data, cloud);
 		float saliency = keypoint.getSaliencyScore();
-		float gaussian = gaussian_map.calculate(gaze_point.x, gaze_point.y, gaze_point.z);
+		float gaussian = calculateFocusPenalty(gaze_point);
 		if (saliency >= max_saliency && gaussian <= min_gaussian)
 		{
 			best_keypoint = keypoint;
@@ -365,4 +367,16 @@ GazePoint GazeSolver::rotate3dPoint(const GazePoint &point,
 
 	Eigen::MatrixXf result = (x_rotate * (y_rotate * (z_rotate * pos)));
 	return {result(0,0), result(1,0), result(2,0)};
+}
+
+float GazeSolver::calculateFocusPenalty(const GazePoint &point)
+{
+	GazePoint world_pt = local_to_world(point);
+	return focus_mapper.calculate(world_pt.x, world_pt.y, world_pt.z);
+}
+
+void GazeSolver::addFocusPenalty(const GazePoint &point)
+{
+	GazePoint world_pt = local_to_world(point);
+	focus_mapper.add(world_pt.x, world_pt.y, world_pt.z, 1000.0f);
 }

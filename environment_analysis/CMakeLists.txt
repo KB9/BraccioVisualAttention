@@ -17,5 +17,5 @@ catkin_package()
 ## Build
 include_directories(include ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
 
-add_executable(rtabmap_ros_listener MapListener.cpp SalientPoint.cpp Braccio.cpp kinematics/MatrixMath.cpp kinematics/BraccioKinematics.cpp GaussianMap.cpp GazeVisualizer.cpp MeshAnalyser.cpp GazeSolver.cpp)
+add_executable(rtabmap_ros_listener MapListener.cpp SalientPoint.cpp Braccio.cpp kinematics/MatrixMath.cpp kinematics/BraccioKinematics.cpp FocusMapper.cpp GazeVisualizer.cpp MeshAnalyser.cpp GazeSolver.cpp)
 target_link_libraries(rtabmap_ros_listener ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES})
