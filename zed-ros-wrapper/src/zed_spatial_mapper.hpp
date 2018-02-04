@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <memory>
+#include <string>
 
 #include <ros/ros.h>
 
@@ -17,7 +18,7 @@ public:
 
 	void start();
 	void stop();
-	void save();
+	bool save(const std::string &filename);
 
 	void update();
 

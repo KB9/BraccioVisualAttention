@@ -49,11 +49,9 @@ void ZedSpatialMapper::stop()
     // Stop the mesh request and extract the whole mesh to filter it and save it as an obj file
     is_mapping = false;
     ROS_INFO("Spatial mapping stopped...");
-
-    save();
 }
 
-void ZedSpatialMapper::save()
+bool ZedSpatialMapper::save(const std::string &filename)
 {
     // Extract the whole mesh
     sl::Mesh wholeMesh;
@@ -71,10 +69,10 @@ void ZedSpatialMapper::save()
     }
 
     // Save as an OBJ file
-    std::string saveName = "./mesh_gen.obj";
-    bool t = wholeMesh.save(saveName.c_str());
-    if (t) ROS_INFO("Mesh has been saved under %s", saveName.c_str());
-    else ROS_WARN("Failed to save the mesh under %s", saveName.c_str());
+    bool t = wholeMesh.save(filename.c_str());
+    if (t) ROS_INFO("Mesh has been saved under %s", filename.c_str());
+    else ROS_WARN("Failed to save the mesh under %s", filename.c_str());
+    return t;
 }
 
 // Update the mesh and draw image and wireframe using OpenGL

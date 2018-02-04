@@ -69,10 +69,35 @@
 // SPATIAL_MAPPING
 #include "zed_spatial_mapper.hpp"
 #include "zed_wrapper/Mesh.h"
+#include "zed_wrapper/SaveSpatialMap.h"
 
 using namespace std;
 
 namespace zed_wrapper {
+
+    // SPATIAL_MAPPING
+    std::unique_ptr<ZedSpatialMapper> spatial_mapper = nullptr;
+
+    bool saveSpatialMap(zed_wrapper::SaveSpatialMap::Request &req,
+                        zed_wrapper::SaveSpatialMap::Response &res)
+    {
+        if (spatial_mapper != nullptr)
+        {
+            res.success = spatial_mapper->save(req.filename);
+            if (!res.success)
+            {
+                ROS_INFO("Failed to save spatial map - unknown reason!");
+                return false;
+            }
+            return true;
+        }
+        else
+        {
+            ROS_WARN("Failed to save spatial map - mapping not started!");
+            res.success = false;
+            return false;
+        }
+    }
 
     class ZEDWrapperNodelet : public nodelet::Nodelet {
         ros::NodeHandle nh;
@@ -92,6 +117,7 @@ namespace zed_wrapper {
         ros::Publisher pub_depth_cam_info;
         ros::Publisher pub_odom;
         ros::Publisher pub_mesh;
+        ros::ServiceServer serv_save_mesh;
 
         // tf
         tf2_ros::TransformBroadcaster transform_odom_broadcaster;
@@ -138,8 +164,8 @@ namespace zed_wrapper {
         string point_cloud_frame_id = "";
         ros::Time point_cloud_time;
 
-        // SPATIAL_MAPPING
-        std::unique_ptr<ZedSpatialMapper> spatial_mapper = nullptr;
+        // // SPATIAL_MAPPING
+        // std::unique_ptr<ZedSpatialMapper> spatial_mapper = nullptr;
 
         /* \brief Convert an sl:Mat to a cv::Mat
          * \param mat : the sl::Mat to convert
@@ -415,6 +441,7 @@ namespace zed_wrapper {
             ros::Time old_t = ros::Time::now();
             bool old_image = false;
             bool tracking_activated = false;
+            bool mapping_activated = false;
 
             // Get the parameters of the ZED images
             int width = zed->getResolution().width;
@@ -462,18 +489,15 @@ namespace zed_wrapper {
                     runParams.enable_point_cloud = true;
                 // Run the loop only if there is some subscribers
                 if (runLoop) {
-                    if ( (depth_stabilization || odom_SubNumber > 0 || mesh_SubNumber > 0) && !tracking_activated) { //Start the tracking
+                    if ( (depth_stabilization || odom_SubNumber > 0) && !tracking_activated) { //Start the tracking
                         if (odometry_DB != "" && !file_exist(odometry_DB)) {
                             odometry_DB = "";
                             NODELET_WARN("odometry_DB path doesn't exist or is unreachable.");
                         }
                         zed->enableTracking(trackParams);
-                        // SPATIAL_MAPPING
-                        spatial_mapper->start();
                         tracking_activated = true;
-                    } else if (!depth_stabilization && odom_SubNumber == 0 && mesh_SubNumber == 0 && tracking_activated) { //Stop the tracking
+                    } else if (!depth_stabilization && odom_SubNumber == 0 && tracking_activated) { //Stop the tracking
                         zed->disableTracking();
-                        // SPATIAL_MAPPING
                         tracking_activated = false;
                     }
                     computeDepth = (depth_SubNumber + cloud_SubNumber + odom_SubNumber + mesh_SubNumber) > 0; // Detect if one of the subscriber need to have the depth information
@@ -513,12 +537,28 @@ namespace zed_wrapper {
                                 }
                                 zed->enableTracking(trackParams);
                                 // SPATIAL_MAPPING
-                                spatial_mapper = std::make_unique<ZedSpatialMapper>(zed);
-                                spatial_mapper->start();
+                                if (mesh_SubNumber > 0)
+                                {
+                                    spatial_mapper = std::make_unique<ZedSpatialMapper>(zed);
+                                    spatial_mapper->start();
+                                }
                                 tracking_activated = true;
                             }
                         }
                         continue;
+                    }
+
+                    // SPATIAL_MAPPING
+                    if (mesh_SubNumber > 0 && !mapping_activated)
+                    {
+                        if (!tracking_activated) zed->enableTracking(trackParams);
+                        spatial_mapper->start();
+                        mapping_activated = true;
+                    }
+                    else if (mesh_SubNumber == 0 && mapping_activated)
+                    {
+                        spatial_mapper->stop();
+                        mapping_activated = false;
                     }
 
                     old_t = ros::Time::now();
@@ -837,6 +877,9 @@ namespace zed_wrapper {
             // SPATIAL_MAPPING: Mesh publisher
             pub_mesh = nh.advertise<zed_wrapper::Mesh>(mesh_topic, 1);
             NODELET_INFO_STREAM("Advertized on topic " << mesh_topic);
+
+            // SPATIAL_MAPPING: Mesh saver service
+            serv_save_mesh = nh.advertiseService("SaveSpatialMap", saveSpatialMap);
 
             device_poll_thread = boost::shared_ptr<boost::thread>
                     (new boost::thread(boost::bind(&ZEDWrapperNodelet::device_poll, this)));

@@ -68,6 +68,9 @@ generate_dynamic_reconfigure_options(
 # Add detected object msg file
 add_message_files(FILES Matrix4f.msg Normal.msg Triangle.msg UV.msg Vertex.msg Chunk.msg Mesh.msg)
 
+# Add spatial map save service file
+add_service_files(FILES SaveSpatialMap.srv)
+
 generate_messages(DEPENDENCIES std_msgs sensor_msgs)
 
 catkin_package(
