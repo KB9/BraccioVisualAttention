@@ -26,10 +26,16 @@
 
 #include "GazeSolver.hpp"
 
+#include "AsyncPeriodicRunner.hpp"
+
+#include "zed_wrapper/SaveSpatialMap.h"
+
 Braccio braccio;
 
 std::unique_ptr<GazeSolver> gaze_solver = nullptr;
 SensorData gaze_data;
+
+AsyncPeriodicRunner periodic_mesh_saver;
 
 GazePoint gazeSolverToBraccio(const GazePoint &gaze_solver_point)
 {
@@ -142,6 +148,18 @@ int main(int argc, char **argv)
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
 	braccio.lookAt(5.0f, 5.0f, 20.0f);
+
+	// Start an async periodic runner which will save the environment mesh at
+	// the specified intervals
+	ros::ServiceClient mesh_save_client = node_handle.serviceClient<zed_wrapper::SaveSpatialMap>("/zed/SaveSpatialMap");
+	periodic_mesh_saver.start(10000, [&]() {
+		zed_wrapper::SaveSpatialMap srv;
+		srv.request.filename = "/home/kavan/async_save_test.obj";
+		if (!mesh_save_client.call(srv))
+		{
+			ROS_WARN("Failed to save the environment mesh!");
+		}
+	});
 
 	ros::spin();
 
