@@ -178,7 +178,7 @@ std::pair<JointAngles, bool> solve2d_constrained(Pos2d tgt, Lengths lengths, Joi
 		if (!res.second) continue;
 		result = res.first;
 
-	} while(!satisfies(constraints, result) && limit-- > 0);
+	} while(!satisfies(constraints, result) && fk_pos(lengths, result).y < 0 && limit-- > 0);
 
 	if (limit <= 0) ROS_INFO("Limit for 2d constrained reached");	
 
