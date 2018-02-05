@@ -125,7 +125,7 @@ void meshCallback(const zed_wrapper::Mesh& mesh_msg)
 
 int main(int argc, char **argv)
 {
-	ros::init(argc, argv, "rtabmap_ros_listener");
+	ros::init(argc, argv, "mapper");
 	ros::NodeHandle node_handle;
 	ros::Rate loop_rate(10);
 
