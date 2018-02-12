@@ -120,6 +120,11 @@ GazePoint GazeSolver::next(const SensorData &data)
 
 	// If neither objects or keypoints could be looked at, attempt to look
 	// at an under-mapped area of the environment mesh
+	return findUnderMappedSection(data);
+}
+
+GazePoint GazeSolver::findUnderMappedSection(const SensorData &data)
+{
 	ROS_INFO("Focusing gaze on under-mapped mesh section.");
 
 	// Set the perspective and pose matrices used to project the mesh vertices

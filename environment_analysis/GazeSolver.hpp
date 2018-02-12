@@ -64,6 +64,7 @@ public:
 	           float diag_fov);
 
 	GazePoint next(const SensorData &data);
+	GazePoint findUnderMappedSection(const SensorData &data);
 
 	void showVisualization(const sensor_msgs::Image &img_msg);
 

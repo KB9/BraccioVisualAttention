@@ -103,7 +103,15 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 
 	// Send the gaze point to the Braccio kinematics solver, and move the Braccio
 	// to focus on it
-	braccio.lookAt(braccio_point.x, braccio_point.y, braccio_point.z);
+	bool ok = braccio.lookAt(braccio_point.x, braccio_point.y, braccio_point.z);
+	if (!ok)
+	{
+		// If the Braccio can't look at the point that was selected due to its
+		// topology, find somewhere else in the mesh to look at
+		gaze_point = gaze_solver->findUnderMappedSection(gaze_data);
+		braccio_point = gazeSolverToBraccio(gaze_point);
+		braccio.lookAt(braccio_point.x, braccio_point.y, braccio_point.z);
+	}
 }
 
 void imageCallback(const sensor_msgs::Image &img_msg)
