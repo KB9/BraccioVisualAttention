@@ -81,6 +81,9 @@ private:
 	DetectedObjects detectObjects(const sensor_msgs::Image &img_msg);
 	DetectedKeypoints mostSalientKeypoints(std::vector<cv::KeyPoint> &keypoints);
 
+	std::pair<tf_object_detection::DetectedObject, GazePoint> findBestObject(const DetectedObjects &objects,
+	                                                                         const SensorData &data,
+	                                                                         const PointCloud &cloud);
 	std::pair<SalientPoint, GazePoint> findBestKeyPoint(const DetectedKeypoints &keypoints,
 	                                                    const SensorData &data,
 	                                                    const PointCloud &cloud);

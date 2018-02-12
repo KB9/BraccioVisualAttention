@@ -92,13 +92,15 @@ GazePoint GazeSolver::next(const SensorData &data)
 
 	// Try to look at any objects first
 	// TODO: Don't look at the object if the Gaussian result is too high
-	while (!objects.empty())
+	if (!objects.empty())
 	{
-		auto screen_pos = toScreen(objects[0]);
-		GazePoint gaze_point = find3dPoint(screen_pos, data, cloud);
+		std::pair<tf_object_detection::DetectedObject, GazePoint> best = findBestObject(objects, data, cloud);
+		tf_object_detection::DetectedObject object = best.first;
+		GazePoint gaze_point = best.second;
 
-		ROS_INFO("Focusing gaze on detected object.");
+		ROS_INFO("Focusing gaze on detected %s.", object.obj_class.c_str());
 		addFocusPenalty(gaze_point);
+		auto screen_pos = toScreen(object);
 		visualizer.setGazePoint(screen_pos.x, screen_pos.y);
 		if (gaze_point.is_estimate) ROS_WARN("Using estimated gaze point!");
 		return gaze_point;
@@ -184,17 +186,6 @@ DetectedObjects GazeSolver::detectObjects(const sensor_msgs::Image &img_msg)
 			// Update the visualization image
 			sensor_msgs::Image result_img_msg = srv.response.result_image;
 			visualizer.update(result_img_msg);
-
-			// Report the detected objects
-			for (auto &obj : detected_objects)
-			{
-				ROS_INFO("Class: %s", obj.obj_class.c_str());
-				ROS_INFO("Score: %f", obj.score);
-				ROS_INFO("Left: %u", obj.left);
-				ROS_INFO("Top: %u", obj.top);
-				ROS_INFO("Right: %u", obj.right);
-				ROS_INFO("Bottom: %u", obj.bottom);
-			}
 		}
 	}
 	else
@@ -223,6 +214,29 @@ DetectedKeypoints GazeSolver::mostSalientKeypoints(std::vector<cv::KeyPoint> &ke
 		salient_points.end());
 
 	return salient_points;
+}
+
+std::pair<tf_object_detection::DetectedObject, GazePoint> GazeSolver::findBestObject(const DetectedObjects &objects,
+                                                                                     const SensorData &data,
+                                                                                     const PointCloud &cloud)
+{
+	// Look at the object with the lowest Gaussian result
+	float min_gaussian = std::numeric_limits<float>::max();
+	tf_object_detection::DetectedObject best_object = objects[0];
+	GazePoint best_gaze_point;
+	for (const auto &object : objects)
+	{
+		auto screen_pos = toScreen(object);
+		GazePoint gaze_point = find3dPoint(screen_pos, data, cloud);
+		float gaussian = calculateFocusPenalty(gaze_point);
+		if (gaussian < min_gaussian)
+		{
+			min_gaussian = gaussian;
+			best_gaze_point = gaze_point;
+		}
+	}
+	ROS_INFO("Detected object info: GAUSSIAN=%.3f", min_gaussian);
+	return {best_object, best_gaze_point};
 }
 
 std::pair<SalientPoint, GazePoint> GazeSolver::findBestKeyPoint(const DetectedKeypoints &keypoints,
