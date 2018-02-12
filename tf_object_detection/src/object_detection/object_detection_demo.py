@@ -29,10 +29,13 @@ from sensor_msgs.msg import Image
 
 # TODO: Only download the model if it hasn't already been downloaded
 def download_model(model_url, model_file):
-	opener = urllib.request.URLopener()
-	print "Downloading model..."
-	opener.retrieve(model_url, model_file)
-	print "Download complete!"
+	if not os.path.isfile(model_file):
+		opener = urllib.request.URLopener()
+		print "Downloading model..."
+		opener.retrieve(model_url, model_file)
+		print "Download complete!"
+	else:
+		print "Using existing downloaded model!"
 	tar_file = tarfile.open(model_file)
 	for file in tar_file.getmembers():
 		file_name = os.path.basename(file.name)
