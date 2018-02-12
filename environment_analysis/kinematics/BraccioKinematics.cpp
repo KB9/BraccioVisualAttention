@@ -175,10 +175,11 @@ std::pair<JointAngles, bool> solve2d_constrained(Pos2d tgt, Lengths lengths, Joi
 		--limit;
 		JointAngles angles = {real_dist(dre), real_dist(dre), real_dist(dre) };
 		auto res = solve2d(tgt, lengths, angles, delta, limit);
-		if (!res.second) continue;
+		bool effector_below_base = fk_pos(lengths, res.first).y < 0;
+		if (!res.second || effector_below_base) continue;
 		result = res.first;
 
-	} while(!satisfies(constraints, result) && fk_pos(lengths, result).y < 0 && limit-- > 0);
+	} while(!satisfies(constraints, result) && limit-- > 0);
 
 	if (limit <= 0) ROS_INFO("Limit for 2d constrained reached");	
 
