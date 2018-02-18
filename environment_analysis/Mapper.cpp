@@ -47,12 +47,7 @@ SphericalMapper spherical_mapper(1.9198621772f);
 std::unique_ptr<SceneAnalyzer> scene_analyzer = nullptr;
 SceneAnalyzer::SceneData scene_data;
 
-struct GazePoint
-{
-	float x, y, z;
-};
-
-GazePoint gazeSolverToBraccio(const GazePoint &gaze_solver_point)
+SceneAnalyzer::ScenePoint gazeSolverToBraccio(const SceneAnalyzer::ScenePoint &gaze_solver_point)
 {
 	const float M_TO_CM = 100.0f;
 	float braccio_x = gaze_solver_point.z * M_TO_CM;
@@ -106,7 +101,7 @@ GazePoint gazeSolverToBraccio(const GazePoint &gaze_solver_point)
 	return {rx, ry, rz};
 }
 
-GazePoint toBraccioKinematicsAxes(const GazePoint &point)
+SceneAnalyzer::ScenePoint toBraccioKinematicsAxes(const SceneAnalyzer::ScenePoint &point)
 {
 	return {point.z * 100.0f, -point.x * 100.0f, point.y * 100.0f};
 }
@@ -128,10 +123,7 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 	if (scene_analyzer->hasNext())
 	{
 		SceneAnalyzer::ScenePoint point = scene_analyzer->next();
-
-		// Convert to Braccio world coordinates and look at
-		GazePoint braccio_point = gazeSolverToBraccio({point.x, point.y, point.z});
-		braccio.lookAt(braccio_point.x, braccio_point.y, braccio_point.z);
+		braccio.lookAt(point.x, point.y, point.z);
 	}
 	// If there are no more points in the scene to be attended to, look at a new
 	// scene and find interesting points within it
@@ -140,7 +132,7 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 		SphericalMapper::GazePoint gaze_point = spherical_mapper.next();
 
 		// Convert to Braccio world coordinates and look at
-		GazePoint braccio_point = toBraccioKinematicsAxes({gaze_point.x, gaze_point.y, gaze_point.z});
+		auto braccio_point = toBraccioKinematicsAxes({gaze_point.x, gaze_point.y, gaze_point.z});
 		braccio.lookAt(braccio_point.x, braccio_point.y, braccio_point.z);
 
 		analyze_scene = true;
@@ -187,7 +179,7 @@ int main(int argc, char **argv)
 	// Set up this node as a client of the TensorFlow object_detection service
 	ros::ServiceClient client = node_handle.serviceClient<tf_object_detection::ObjectDetection>("object_detection");
 
-	scene_analyzer = std::make_unique<SceneAnalyzer>(client, 1.9198621772f);
+	scene_analyzer = std::make_unique<SceneAnalyzer>(client, gazeSolverToBraccio, 1.9198621772f);
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
 	braccio.lookAt(5.0f, 5.0f, 20.0f);

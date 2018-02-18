@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <deque>
+#include <utility>
 
 // ROS
 #include "ros/ros.h"
@@ -49,6 +50,7 @@ public:
 	};
 
 	SceneAnalyzer(const ros::ServiceClient &obj_detect_client,
+	              std::function<ScenePoint(const ScenePoint &camera_point)> camera_to_world,
 	              float diag_fov);
 
 	void analyze(const SceneAnalyzer::SceneData &data);
@@ -60,7 +62,9 @@ public:
 private:
 	ros::ServiceClient obj_detect_client;
 	std::deque<ScenePoint> points;
+	std::deque<ScenePoint> camera_points;
 	float diag_fov;
+	std::function<ScenePoint(const ScenePoint &camera_point)> camera_to_world;
 
 	Eigen::MatrixXf perspective, pose;
 

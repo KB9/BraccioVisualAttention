@@ -53,16 +53,19 @@ DetectedPoints mostSalientKeypoints(DetectedPoints &keypoints)
 }
 
 SceneAnalyzer::SceneAnalyzer(const ros::ServiceClient &obj_detect_client,
+                             std::function<SceneAnalyzer::ScenePoint(const SceneAnalyzer::ScenePoint &camera_point)> camera_to_world,
                              float diag_fov)
 {
 	this->obj_detect_client = obj_detect_client;
 	this->diag_fov = diag_fov;
+	this->camera_to_world = camera_to_world;
 }
 
 SceneAnalyzer::ScenePoint SceneAnalyzer::next()
 {
 	auto point = points.front();
 	points.pop_front();
+	camera_points.pop_front();
 	return point;
 }
 
@@ -75,6 +78,7 @@ void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 {
 	// Clear the last queue of points that were detected
 	points.clear();
+	camera_points.clear();
 
 	DetectedObjectsImgPair objs_img_pair = detectObjects(data);
 	DetectedPoints salient_points = detectSalientPoints(data);
@@ -88,13 +92,17 @@ void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 	{
 		auto screen_pos = toScreen(obj);
 		auto point = to3dPoint(screen_pos, data, cloud);
-		points.push_back(point);
+		camera_points.push_back(point);
+		auto world_relative_point = camera_to_world(point);
+		points.push_back(world_relative_point);
 	}
 	for (const auto &salient_point : salient_points)
 	{
 		auto screen_pos = toScreen(salient_point);
 		auto point = to3dPoint(screen_pos, data, cloud);
-		points.push_back(point);
+		camera_points.push_back(point);
+		auto world_relative_point = camera_to_world(point);
+		points.push_back(world_relative_point);
 	}
 
 	recordAnalysisPose(data);
@@ -205,7 +213,7 @@ void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 	Eigen::MatrixXf pose = getPoseTransformSinceAnalysis(data);
 	Eigen::MatrixXf projection = perspective * pose.inverse();
 	bool is_goal_point_color_set = false;
-	for (const auto &point : points)
+	for (const auto &point : camera_points)
 	{
 		Eigen::MatrixXf v(4,1);
 		v(0,0) = point.x;
@@ -230,7 +238,7 @@ void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 			float screen_y = (y * height) / (2.0f * w) + half_height;
 
 			if (!is_goal_point_color_set)
-				cv::circle(cv_image, {screen_x, screen_y}, 5, {0,0,255,255}, 2);
+				cv::circle(cv_image, {screen_x, screen_y}, 10, {0,0,255,255}, 4);
 			else
 				cv::circle(cv_image, {screen_x, screen_y}, 5, {0,255,0,255}, 2);
 		}
