@@ -79,6 +79,7 @@ void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 	// Clear the last queue of points that were detected
 	points.clear();
 	camera_points.clear();
+	focus_mapper.clear();
 
 	DetectedObjectsImgPair objs_img_pair = detectObjects(data);
 	DetectedPoints salient_points = detectSalientPoints(data);
@@ -91,21 +92,33 @@ void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 	for (const auto &obj : objs_img_pair.first)
 	{
 		auto screen_pos = toScreen(obj);
-		auto point = to3dPoint(screen_pos, data, cloud);
-		camera_points.push_back(point);
-		auto world_relative_point = camera_to_world(point);
-		points.push_back(world_relative_point);
+		addScenePoint(screen_pos, data, cloud);
 	}
 	for (const auto &salient_point : salient_points)
 	{
 		auto screen_pos = toScreen(salient_point);
-		auto point = to3dPoint(screen_pos, data, cloud);
-		camera_points.push_back(point);
-		auto world_relative_point = camera_to_world(point);
-		points.push_back(world_relative_point);
+		addScenePoint(screen_pos, data, cloud);
 	}
 
 	recordAnalysisPose(data);
+}
+
+void SceneAnalyzer::addScenePoint(const ScreenPosition &screen_pos,
+                                  const SceneData &data,
+                                  const PointCloud &cloud)
+{
+	const float FOCUS_THRESHOLD = 0.5f;
+	const float FOCUS_RADIUS = 100.0f;
+
+	auto point = to3dPoint(screen_pos, data, cloud);
+	auto world_point = camera_to_world(point);
+	float score = focus_mapper.calculate(world_point.x, world_point.y, world_point.z);
+	if (score < FOCUS_THRESHOLD)
+	{
+		camera_points.push_back(point);
+		points.push_back(world_point);
+		focus_mapper.add(world_point.x, world_point.y, world_point.z, FOCUS_RADIUS);
+	}
 }
 
 DetectedPoints SceneAnalyzer::detectSalientPoints(const SceneAnalyzer::SceneData &data)
