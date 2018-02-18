@@ -43,3 +43,8 @@ void FocusMapper::decay(float rate)
 		}
 	}
 }
+
+void FocusMapper::clear()
+{
+	points.clear();
+}
