@@ -1,5 +1,7 @@
 #include "SceneAnalyzer.hpp"
 
+#include <string>
+
 // OpenCV
 #include <opencv2/opencv.hpp>
 #include "cv_bridge/cv_bridge.h"
@@ -226,6 +228,8 @@ void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 	Eigen::MatrixXf pose = getPoseTransformSinceAnalysis(data);
 	Eigen::MatrixXf projection = perspective * pose.inverse();
 	bool is_goal_point_color_set = false;
+	float width = 1280.0f;
+	float height = 720.0f;
 	for (const auto &point : camera_points)
 	{
 		Eigen::MatrixXf v(4,1);
@@ -243,8 +247,6 @@ void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 		if (w >= 0.0f)
 		{
 			// Convert the 3D position to the 2D screen position
-			float width = 1280.0f;
-			float height = 720.0f;
 			float half_width = width / 2.0f;
 			float half_height = height / 2.0f;
 			float screen_x = (x * width) / (2.0f * w) + half_width;
@@ -261,6 +263,9 @@ void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 	// Draw red line overlay to indicate center of image
 	cv::line(cv_image, {cv_image.cols/2,0}, {cv_image.cols/2,cv_image.rows}, {0,0,255,255});
 	cv::line(cv_image, {0,cv_image.rows/2}, {cv_image.cols,cv_image.rows/2}, {0,0,255,255});
+
+	cv::putText(cv_image, "Points to attend: " + std::to_string(points.size()),
+	            {5, height-5}, cv::FONT_HERSHEY_SIMPLEX, 1, {255,255,255,255});
 
 	// Display the image
 	cv::imshow("SceneAnalyzer", cv_image);
