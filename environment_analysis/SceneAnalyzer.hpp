@@ -2,7 +2,7 @@
 #define _SCENE_ANALYZER_H_
 
 #include <vector>
-#include <queue>
+#include <deque>
 
 // ROS
 #include "ros/ros.h"
@@ -52,14 +52,17 @@ public:
 	              float diag_fov);
 
 	void analyze(const SceneAnalyzer::SceneData &data);
+	void visualize(const SceneAnalyzer::SceneData &data);
 
 	ScenePoint next();
 	bool hasNext();
 
 private:
 	ros::ServiceClient obj_detect_client;
-	std::queue<ScenePoint> points;
+	std::deque<ScenePoint> points;
 	float diag_fov;
+
+	Eigen::MatrixXf perspective, pose;
 
 	DetectedPoints detectSalientPoints(const SceneAnalyzer::SceneData &data);
 	DetectedObjectsImgPair detectObjects(const SceneAnalyzer::SceneData &data);
@@ -73,6 +76,10 @@ private:
 	SceneAnalyzer::ScenePoint createFakePoint(const SceneAnalyzer::ScreenPosition &screen,
 	                                          float diag_fov,
 	                                          unsigned screen_width, unsigned screen_height);
+
+	void recordAnalysisPose(const SceneAnalyzer::SceneData &data);
+	Eigen::MatrixXf getPoseTransformSinceAnalysis(const SceneAnalyzer::SceneData &data);
+	Eigen::MatrixXf toEigenMatrix(const zed_wrapper::Matrix4f &msg);
 };
 
 #endif // _SCENE_ANALYZER_H_

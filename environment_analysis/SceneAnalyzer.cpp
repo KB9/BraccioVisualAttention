@@ -4,6 +4,9 @@
 #include <opencv2/opencv.hpp>
 #include "cv_bridge/cv_bridge.h"
 
+// Eigen
+#include <Eigen/Core>
+
 double calculateSaliencyScore(const cv::KeyPoint &keypoint)
 {
 	const int x = keypoint.pt.x;
@@ -59,7 +62,7 @@ SceneAnalyzer::SceneAnalyzer(const ros::ServiceClient &obj_detect_client,
 SceneAnalyzer::ScenePoint SceneAnalyzer::next()
 {
 	auto point = points.front();
-	points.pop();
+	points.pop_front();
 	return point;
 }
 
@@ -71,7 +74,7 @@ bool SceneAnalyzer::hasNext()
 void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 {
 	// Clear the last queue of points that were detected
-	points = std::queue<SceneAnalyzer::ScenePoint>();
+	points.clear();
 
 	DetectedObjectsImgPair objs_img_pair = detectObjects(data);
 	DetectedPoints salient_points = detectSalientPoints(data);
@@ -85,14 +88,16 @@ void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 	{
 		auto screen_pos = toScreen(obj);
 		auto point = to3dPoint(screen_pos, data, cloud);
-		points.push(point);
+		points.push_back(point);
 	}
 	for (const auto &salient_point : salient_points)
 	{
 		auto screen_pos = toScreen(salient_point);
 		auto point = to3dPoint(screen_pos, data, cloud);
-		points.push(point);
+		points.push_back(point);
 	}
+
+	recordAnalysisPose(data);
 }
 
 DetectedPoints SceneAnalyzer::detectSalientPoints(const SceneAnalyzer::SceneData &data)
@@ -189,4 +194,87 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::createFakePoint(const SceneAnalyzer::Sc
 	fake_point.y = fake_point.z * tanf(angle_y);
 
 	return fake_point;
+}
+
+void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
+{
+	if (points.empty()) return; // TEMPORARY WORKAROUND
+
+	cv::Mat cv_image = cv_bridge::toCvCopy(data.image)->image;
+
+	Eigen::MatrixXf pose = getPoseTransformSinceAnalysis(data);
+	Eigen::MatrixXf projection = perspective * pose.inverse();
+	bool is_goal_point_color_set = false;
+	for (const auto &point : points)
+	{
+		Eigen::MatrixXf v(4,1);
+		v(0,0) = point.x;
+		v(1,0) = point.y;
+		v(2,0) = point.z;
+		v(3,0) = 1.0f;
+
+		Eigen::MatrixXf result = projection * v;
+		float x = result(0,0);
+		float y = result(1,0);
+		float z = result(2,0);
+		float w = result(3,0);
+
+		if (w >= 0.0f)
+		{
+			// Convert the 3D position to the 2D screen position
+			float width = 1280.0f;
+			float height = 720.0f;
+			float half_width = width / 2.0f;
+			float half_height = height / 2.0f;
+			float screen_x = (x * width) / (2.0f * w) + half_width;
+			float screen_y = (y * height) / (2.0f * w) + half_height;
+
+			if (!is_goal_point_color_set)
+				cv::circle(cv_image, {screen_x, screen_y}, 5, {0,0,255,255}, 2);
+			else
+				cv::circle(cv_image, {screen_x, screen_y}, 5, {0,255,0,255}, 2);
+		}
+		is_goal_point_color_set = true;
+	}
+
+	// Draw red line overlay to indicate center of image
+	cv::line(cv_image, {cv_image.cols/2,0}, {cv_image.cols/2,cv_image.rows}, {0,0,255,255});
+	cv::line(cv_image, {0,cv_image.rows/2}, {cv_image.cols,cv_image.rows/2}, {0,0,255,255});
+
+	// Display the image
+	cv::imshow("SceneAnalyzer", cv_image);
+	cv::waitKey(30);
+}
+
+Eigen::MatrixXf SceneAnalyzer::toEigenMatrix(const zed_wrapper::Matrix4f &msg)
+{
+	Eigen::MatrixXf matrix(4,4);
+	matrix(0,0) = msg.m11;
+	matrix(0,1) = msg.m12;
+	matrix(0,2) = msg.m13;
+	matrix(0,3) = msg.m14;
+	matrix(1,0) = msg.m21;
+	matrix(1,1) = msg.m22;
+	matrix(1,2) = msg.m23;
+	matrix(1,3) = msg.m24;
+	matrix(2,0) = msg.m31;
+	matrix(2,1) = msg.m32;
+	matrix(2,2) = msg.m33;
+	matrix(2,3) = msg.m34;
+	matrix(3,0) = msg.m41;
+	matrix(3,1) = msg.m42;
+	matrix(3,2) = msg.m43;
+	matrix(3,3) = msg.m44;
+	return matrix;
+}
+
+void SceneAnalyzer::recordAnalysisPose(const SceneAnalyzer::SceneData &data)
+{
+	perspective = toEigenMatrix(data.mesh.perspective);
+	pose = toEigenMatrix(data.mesh.pose);
+}
+
+Eigen::MatrixXf SceneAnalyzer::getPoseTransformSinceAnalysis(const SceneAnalyzer::SceneData &data)
+{
+	return pose.inverse() * toEigenMatrix(data.mesh.pose);
 }

@@ -154,6 +154,7 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 void imageCallback(const sensor_msgs::Image &img_msg)
 {
 	scene_data.image = img_msg;
+	scene_analyzer->visualize(scene_data);
 }
 
 void cloudMapCallback(const sensor_msgs::PointCloud2Ptr& cloud_msg)
