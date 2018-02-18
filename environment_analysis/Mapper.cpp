@@ -24,18 +24,33 @@
 // TensorFlow object_detection ROS service
 #include "tf_object_detection/ObjectDetection.h"
 
-#include "GazeSolver.hpp"
-
 #include "AsyncPeriodicRunner.hpp"
 
 #include "zed_wrapper/SaveSpatialMap.h"
 
+#include "SphericalMapper.hpp"
+#include "SceneAnalyzer.hpp"
+
 Braccio braccio;
 
-std::unique_ptr<GazeSolver> gaze_solver = nullptr;
-SensorData gaze_data;
+// NEW SYSTEMATIC ALGORITHM PLAN:
+/*
+The SphericalMapper will create a sphere of points to look out to. These can
+be iterated over with its next() method. Once next() is called, the next() method
+for the SceneAnalyzer should be called. Once SceneAnalyzer's next() stops
+returning new points to look at, SphericalMapper's next() should be called. When
+SphericalMapper's next() stops returning new points, the mesh should be saved.
 
-AsyncPeriodicRunner periodic_mesh_saver;
+This can be repeated ad infinitum if desired.
+*/
+SphericalMapper spherical_mapper(1.9198621772f);
+std::unique_ptr<SceneAnalyzer> scene_analyzer = nullptr;
+SceneAnalyzer::SceneData scene_data;
+
+struct GazePoint
+{
+	float x, y, z;
+};
 
 GazePoint gazeSolverToBraccio(const GazePoint &gaze_solver_point)
 {
@@ -88,47 +103,67 @@ GazePoint gazeSolverToBraccio(const GazePoint &gaze_solver_point)
 	float rx = result(0,0) + braccio.getEffectorX();
 	float ry = result(1,0) + braccio.getEffectorY();
 	float rz = result(2,0) + braccio.getEffectorZ();
-	return {rx, ry, rz, gaze_solver_point.is_estimate};
+	return {rx, ry, rz};
 }
 
+GazePoint toBraccioKinematicsAxes(const GazePoint &point)
+{
+	return {point.z * 100.0f, -point.x * 100.0f, point.y * 100.0f};
+}
+
+bool analyze_scene = false;
+
 void onBraccioGazeFocusedCallback(std_msgs::Bool value)
-{	
-	// Find the next gaze point to focus on
-	// NOTE: The gaze point solver works with a RHS-with-Y-up coordinate system
-	GazePoint gaze_point = gaze_solver->next(gaze_data);
-
-	// Convert the RHS-with-Y-up scheme used by the gaze solver to the
-	// LHS-with-Z-up coordinate scheme used by the Braccio kinematics solver
-	GazePoint braccio_point = gazeSolverToBraccio(gaze_point);
-
-	// Send the gaze point to the Braccio kinematics solver, and move the Braccio
-	// to focus on it
-	bool ok = braccio.lookAt(braccio_point.x, braccio_point.y, braccio_point.z);
-	if (!ok)
+{
+	// Analyze the current scene if the Braccio has been set to look at a new
+	// scene
+	if (analyze_scene)
 	{
-		// If the Braccio can't look at the point that was selected due to its
-		// topology, find somewhere else in the mesh to look at
-		gaze_point = gaze_solver->findUnderMappedSection(gaze_data);
-		braccio_point = gazeSolverToBraccio(gaze_point);
+		scene_analyzer->analyze(scene_data);
+		analyze_scene = false;
+	}
+
+	// If there are still points in the scene that need to be attended to, do
+	// those first
+	if (scene_analyzer->hasNext())
+	{
+		SceneAnalyzer::ScenePoint point = scene_analyzer->next();
+
+		// Convert to Braccio world coordinates and look at
+		GazePoint braccio_point = gazeSolverToBraccio({point.x, point.y, point.z});
 		braccio.lookAt(braccio_point.x, braccio_point.y, braccio_point.z);
+	}
+	// If there are no more points in the scene to be attended to, look at a new
+	// scene and find interesting points within it
+	else if (spherical_mapper.hasNext())
+	{
+		SphericalMapper::GazePoint gaze_point = spherical_mapper.next();
+
+		// Convert to Braccio world coordinates and look at
+		GazePoint braccio_point = toBraccioKinematicsAxes({gaze_point.x, gaze_point.y, gaze_point.z});
+		braccio.lookAt(braccio_point.x, braccio_point.y, braccio_point.z);
+
+		analyze_scene = true;
+	}
+	else
+	{
+		// TODO: Save the mesh here. Repeat scanning if desired.
 	}
 }
 
 void imageCallback(const sensor_msgs::Image &img_msg)
 {
-	gaze_data.image = img_msg;
-	gaze_solver->showVisualization(img_msg);
+	scene_data.image = img_msg;
 }
 
 void cloudMapCallback(const sensor_msgs::PointCloud2Ptr& cloud_msg)
 {
-	gaze_data.cloud = cloud_msg;
+	scene_data.cloud = cloud_msg;
 }
 
-// Display of spatial mesh vertices
 void meshCallback(const zed_wrapper::Mesh& mesh_msg)
 {
-	gaze_data.mesh = mesh_msg;
+	scene_data.mesh = mesh_msg;
 }
 
 int main(int argc, char **argv)
@@ -151,23 +186,10 @@ int main(int argc, char **argv)
 	// Set up this node as a client of the TensorFlow object_detection service
 	ros::ServiceClient client = node_handle.serviceClient<tf_object_detection::ObjectDetection>("object_detection");
 
-	// NEW
-	gaze_solver = std::make_unique<GazeSolver>(client, &gazeSolverToBraccio, 1.9198621772f);
+	scene_analyzer = std::make_unique<SceneAnalyzer>(client, 1.9198621772f);
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
 	braccio.lookAt(5.0f, 5.0f, 20.0f);
-
-	// Start an async periodic runner which will save the environment mesh at
-	// the specified intervals
-	ros::ServiceClient mesh_save_client = node_handle.serviceClient<zed_wrapper::SaveSpatialMap>("/zed/SaveSpatialMap");
-	periodic_mesh_saver.start(10000, [&]() {
-		zed_wrapper::SaveSpatialMap srv;
-		srv.request.filename = "/home/kavan/async_save_test.obj";
-		if (!mesh_save_client.call(srv))
-		{
-			ROS_WARN("Failed to save the environment mesh!");
-		}
-	});
 
 	ros::spin();
 
