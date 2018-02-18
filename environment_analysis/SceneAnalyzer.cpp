@@ -38,7 +38,7 @@ DetectedPoints mostSalientKeypoints(DetectedPoints &keypoints)
 
 	// Calculate the standard deviation of the keypoints, and erase those
 	// that are lower than the standard deviation.
-	double sd = calculateSaliencySD(salient_points);
+	double sd = calculateSaliencySD(keypoints);
 	for (const auto &point : keypoints)
 	{
 		if (calculateSaliencyScore(point) >= sd)
@@ -70,6 +70,9 @@ bool SceneAnalyzer::hasNext()
 
 void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 {
+	// Clear the last queue of points that were detected
+	points = std::queue<SceneAnalyzer::ScenePoint>();
+
 	DetectedObjectsImgPair objs_img_pair = detectObjects(data);
 	DetectedPoints salient_points = detectSalientPoints(data);
 
