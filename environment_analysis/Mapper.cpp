@@ -28,8 +28,7 @@
 
 #include "zed_wrapper/SaveSpatialMap.h"
 
-#include "SphericalMapper.hpp"
-#include "SceneAnalyzer.hpp"
+#include "GazeDirector.hpp"
 
 Braccio braccio;
 
@@ -43,8 +42,7 @@ SphericalMapper's next() stops returning new points, the mesh should be saved.
 
 This can be repeated ad infinitum if desired.
 */
-SphericalMapper spherical_mapper(1.9198621772f);
-std::unique_ptr<SceneAnalyzer> scene_analyzer = nullptr;
+std::unique_ptr<GazeDirector> gaze_director = nullptr;
 SceneAnalyzer::SceneData scene_data;
 
 SceneAnalyzer::ScenePoint gazeSolverToBraccio(const SceneAnalyzer::ScenePoint &gaze_solver_point)
@@ -101,41 +99,12 @@ SceneAnalyzer::ScenePoint gazeSolverToBraccio(const SceneAnalyzer::ScenePoint &g
 	return {rx, ry, rz};
 }
 
-SceneAnalyzer::ScenePoint toBraccioKinematicsAxes(const SceneAnalyzer::ScenePoint &point)
-{
-	return {point.z * 100.0f, -point.x * 100.0f, point.y * 100.0f};
-}
-
-bool analyze_scene = false;
-
 void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 {
-	// Analyze the current scene if the Braccio has been set to look at a new
-	// scene
-	if (analyze_scene)
+	if (gaze_director->hasNext())
 	{
-		scene_analyzer->analyze(scene_data);
-		analyze_scene = false;
-	}
-
-	// If there are still points in the scene that need to be attended to, do
-	// those first
-	if (scene_analyzer->hasNext())
-	{
-		SceneAnalyzer::ScenePoint point = scene_analyzer->next();
-		braccio.lookAt(point.x, point.y, point.z);
-	}
-	// If there are no more points in the scene to be attended to, look at a new
-	// scene and find interesting points within it
-	else if (spherical_mapper.hasNext())
-	{
-		SphericalMapper::GazePoint gaze_point = spherical_mapper.next();
-
-		// Convert to Braccio world coordinates and look at
-		auto braccio_point = toBraccioKinematicsAxes({gaze_point.x, gaze_point.y, gaze_point.z});
-		braccio.lookAt(braccio_point.x, braccio_point.y, braccio_point.z);
-
-		analyze_scene = true;
+		GazeDirector::GazePoint gaze_point = gaze_director->next(scene_data);
+		braccio.lookAt(gaze_point.x, gaze_point.y, gaze_point.z);
 	}
 	else
 	{
@@ -146,7 +115,7 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 void imageCallback(const sensor_msgs::Image &img_msg)
 {
 	scene_data.image = img_msg;
-	scene_analyzer->visualize(scene_data);
+	gaze_director->visualize(scene_data);
 }
 
 void cloudMapCallback(const sensor_msgs::PointCloud2Ptr& cloud_msg)
@@ -179,7 +148,7 @@ int main(int argc, char **argv)
 	// Set up this node as a client of the TensorFlow object_detection service
 	ros::ServiceClient client = node_handle.serviceClient<tf_object_detection::ObjectDetection>("object_detection");
 
-	scene_analyzer = std::make_unique<SceneAnalyzer>(client, gazeSolverToBraccio, 1.9198621772f);
+	gaze_director = std::make_unique<GazeDirector>(client, gazeSolverToBraccio, 1.9198621772f);
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
 	braccio.lookAt(5.0f, 5.0f, 20.0f);
