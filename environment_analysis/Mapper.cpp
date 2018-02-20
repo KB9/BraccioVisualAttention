@@ -45,6 +45,8 @@ This can be repeated ad infinitum if desired.
 std::unique_ptr<GazeDirector> gaze_director = nullptr;
 SceneAnalyzer::SceneData scene_data;
 
+ros::ServiceClient mesh_save_client;
+
 SceneAnalyzer::ScenePoint gazeSolverToBraccio(const SceneAnalyzer::ScenePoint &gaze_solver_point)
 {
 	const float M_TO_CM = 100.0f;
@@ -108,7 +110,13 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 	}
 	else
 	{
-		// TODO: Save the mesh here. Repeat scanning if desired.
+		// Save the mesh once environment mapping is complete
+		zed_wrapper::SaveSpatialMap srv;
+		srv.request.filename = "/home/kavan/environment.obj";
+		if (!mesh_save_client.call(srv))
+		{
+			ROS_ERROR("Failed to save the environment mesh!");
+		}
 	}
 }
 
@@ -149,6 +157,8 @@ int main(int argc, char **argv)
 	ros::ServiceClient client = node_handle.serviceClient<tf_object_detection::ObjectDetection>("object_detection");
 
 	gaze_director = std::make_unique<GazeDirector>(client, gazeSolverToBraccio, 1.9198621772f);
+
+	mesh_save_client = node_handle.serviceClient<zed_wrapper::SaveSpatialMap>("/zed/SaveSpatialMap");
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
 	braccio.lookAt(5.0f, 5.0f, 20.0f);
