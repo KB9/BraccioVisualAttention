@@ -221,43 +221,46 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::createFakePoint(const SceneAnalyzer::Sc
 
 void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 {
-	if (points.empty()) return; // TEMPORARY WORKAROUND
-
 	cv::Mat cv_image = cv_bridge::toCvCopy(data.image)->image;
 
-	Eigen::MatrixXf pose = getPoseTransformSinceAnalysis(data);
-	Eigen::MatrixXf projection = perspective * pose.inverse();
-	bool is_goal_point_color_set = false;
-	float width = 1280.0f;
-	float height = 720.0f;
-	for (const auto &point : camera_points)
+	if (!camera_points.empty())
 	{
-		Eigen::MatrixXf v(4,1);
-		v(0,0) = point.x;
-		v(1,0) = point.y;
-		v(2,0) = point.z;
-		v(3,0) = 1.0f;
+		// Eigen::MatrixXf pose = getPoseTransformSinceAnalysis(data); // TODO: This is not the pose, pose = analysis_pose and difference
+		Eigen::MatrixXf pose = analysis_pose * getPoseTransformSinceAnalysis(data);
+		Eigen::MatrixXf projection = perspective * pose.inverse();
+		bool is_goal_point_color_set = false;
+		float width = cv_image.cols;
+		float height = cv_image.rows;
 
-		Eigen::MatrixXf result = projection * v;
-		float x = result(0,0);
-		float y = result(1,0);
-		float z = result(2,0);
-		float w = result(3,0);
-
-		if (w >= 0.0f)
+		for (const auto &point : camera_points)
 		{
-			// Convert the 3D position to the 2D screen position
-			float half_width = width / 2.0f;
-			float half_height = height / 2.0f;
-			float screen_x = (x * width) / (2.0f * w) + half_width;
-			float screen_y = (y * height) / (2.0f * w) + half_height;
+			Eigen::MatrixXf v(4,1);
+			v(0,0) = point.x;
+			v(1,0) = point.y;
+			v(2,0) = point.z;
+			v(3,0) = 1.0f;
 
-			if (!is_goal_point_color_set)
-				cv::circle(cv_image, {screen_x, screen_y}, 10, {0,0,255,255}, 4);
-			else
-				cv::circle(cv_image, {screen_x, screen_y}, 5, {0,255,0,255}, 2);
+			Eigen::MatrixXf result = projection * v;
+			float x = result(0,0);
+			float y = result(1,0);
+			float z = result(2,0);
+			float w = result(3,0);
+
+			if (w >= 0.0f)
+			{
+				// Convert the 3D position to the 2D screen position
+				float half_width = width / 2.0f;
+				float half_height = height / 2.0f;
+				float screen_x = (x * width) / (2.0f * w) + half_width;
+				float screen_y = (y * height) / (2.0f * w) + half_height;
+
+				if (!is_goal_point_color_set)
+					cv::circle(cv_image, {screen_x, screen_y}, 10, {0,0,255,255}, 4);
+				else
+					cv::circle(cv_image, {screen_x, screen_y}, 5, {0,255,0,255}, 2);
+			}
+			is_goal_point_color_set = true;
 		}
-		is_goal_point_color_set = true;
 	}
 
 	// Draw red line overlay to indicate center of image
@@ -265,7 +268,7 @@ void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 	cv::line(cv_image, {0,cv_image.rows/2}, {cv_image.cols,cv_image.rows/2}, {0,0,255,255});
 
 	cv::putText(cv_image, "Points to attend: " + std::to_string(points.size()),
-	            {5, height-5}, cv::FONT_HERSHEY_SIMPLEX, 1, {255,255,255,255});
+	            {5, cv_image.rows-5}, cv::FONT_HERSHEY_SIMPLEX, 1, {255,255,255,255});
 
 	// Display the image
 	cv::imshow("SceneAnalyzer", cv_image);
@@ -297,10 +300,10 @@ Eigen::MatrixXf SceneAnalyzer::toEigenMatrix(const zed_wrapper::Matrix4f &msg)
 void SceneAnalyzer::recordAnalysisPose(const SceneAnalyzer::SceneData &data)
 {
 	perspective = toEigenMatrix(data.mesh.perspective);
-	pose = toEigenMatrix(data.mesh.pose);
+	analysis_pose = toEigenMatrix(data.mesh.pose);
 }
 
 Eigen::MatrixXf SceneAnalyzer::getPoseTransformSinceAnalysis(const SceneAnalyzer::SceneData &data)
 {
-	return pose.inverse() * toEigenMatrix(data.mesh.pose);
+	return analysis_pose.inverse() * toEigenMatrix(data.mesh.pose);
 }

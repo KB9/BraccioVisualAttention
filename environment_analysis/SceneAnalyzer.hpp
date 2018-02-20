@@ -68,7 +68,7 @@ private:
 	float diag_fov;
 	std::function<ScenePoint(const ScenePoint &camera_point)> camera_to_world;
 
-	Eigen::MatrixXf perspective, pose;
+	Eigen::MatrixXf perspective, analysis_pose;
 
 	FocusMapper focus_mapper;
 
