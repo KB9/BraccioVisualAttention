@@ -65,6 +65,9 @@ private:
 	ros::ServiceClient obj_detect_client;
 	std::deque<ScenePoint> points;
 	std::deque<ScenePoint> camera_points;
+
+	std::deque<ScreenPosition> screen_points; // DEBUGGING
+
 	float diag_fov;
 	std::function<ScenePoint(const ScenePoint &camera_point)> camera_to_world;
 

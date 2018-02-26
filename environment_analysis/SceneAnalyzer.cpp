@@ -68,6 +68,9 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::next()
 	auto point = points.front();
 	points.pop_front();
 	camera_points.pop_front();
+
+	screen_points.pop_front(); // DEBUGGING
+
 	return point;
 }
 
@@ -117,6 +120,8 @@ void SceneAnalyzer::addScenePoint(const ScreenPosition &screen_pos,
 	float score = focus_mapper.calculate(world_point.x, world_point.y, world_point.z);
 	if (score < FOCUS_THRESHOLD)
 	{
+		screen_points.push_back(screen_pos); // DEBUGGING
+
 		camera_points.push_back(point);
 		points.push_back(world_point);
 		focus_mapper.add(world_point.x, world_point.y, world_point.z, FOCUS_RADIUS);
@@ -219,18 +224,24 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::createFakePoint(const SceneAnalyzer::Sc
 	return fake_point;
 }
 
+/*
+FOR SOME ODD REASON, ALL THE POINTS ARE UPSIDE DOWN WHEN VISUALISING!
+*/
 void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 {
 	cv::Mat cv_image = cv_bridge::toCvCopy(data.image)->image;
 
 	if (!camera_points.empty())
 	{
-		// Eigen::MatrixXf pose = getPoseTransformSinceAnalysis(data); // TODO: This is not the pose, pose = analysis_pose and difference
-		Eigen::MatrixXf pose = analysis_pose * getPoseTransformSinceAnalysis(data);
+		Eigen::MatrixXf pose = getPoseTransformSinceAnalysis(data);
 		Eigen::MatrixXf projection = perspective * pose.inverse();
 		bool is_goal_point_color_set = false;
 		float width = cv_image.cols;
 		float height = cv_image.rows;
+
+		// DEBUGGING
+		for (const auto &spt : screen_points)
+			cv::circle(cv_image, {spt.x, spt.y}, 5, {255,0,0,255}, 2);
 
 		for (const auto &point : camera_points)
 		{
