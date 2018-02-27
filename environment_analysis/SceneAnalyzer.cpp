@@ -9,50 +9,52 @@
 // Eigen
 #include <Eigen/Core>
 
-double calculateSaliencyScore(const cv::KeyPoint &keypoint)
-{
-	const int x = keypoint.pt.x;
-	const int y = keypoint.pt.y;
-	const int delta = keypoint.octave;
-	const double k = 0.01;
+#include <opencv2/saliency.hpp>
 
-	return x * y * delta * k;
-}
+// double calculateSaliencyScore(const cv::KeyPoint &keypoint)
+// {
+// 	const int x = keypoint.pt.x;
+// 	const int y = keypoint.pt.y;
+// 	const int delta = keypoint.octave;
+// 	const double k = 0.01;
 
-double calculateSaliencyMean(const DetectedPoints &points)
-{
-	double mean = 0;
-	for (const auto& point : points)
-		mean += calculateSaliencyScore(point);
-	mean /= points.size();
-	return mean;
-}
+// 	return x * y * delta * k;
+// }
 
-double calculateSaliencySD(const DetectedPoints &points)
-{
-	double mean = calculateSaliencyMean(points);
-	double sum_of_differences = 0;
-	for (const auto& point : points)
-		sum_of_differences += std::pow(calculateSaliencyScore(point) - mean, 2);
-	return std::sqrt(((double)1 / (double)points.size()) * sum_of_differences);
-}
+// double calculateSaliencyMean(const DetectedPoints &points)
+// {
+// 	double mean = 0;
+// 	for (const auto& point : points)
+// 		mean += calculateSaliencyScore(point);
+// 	mean /= points.size();
+// 	return mean;
+// }
 
-DetectedPoints mostSalientKeypoints(DetectedPoints &keypoints)
-{
-	DetectedPoints salient_points;
+// double calculateSaliencySD(const DetectedPoints &points)
+// {
+// 	double mean = calculateSaliencyMean(points);
+// 	double sum_of_differences = 0;
+// 	for (const auto& point : points)
+// 		sum_of_differences += std::pow(calculateSaliencyScore(point) - mean, 2);
+// 	return std::sqrt(((double)1 / (double)points.size()) * sum_of_differences);
+// }
 
-	// Calculate the standard deviation of the keypoints, and erase those
-	// that are lower than the standard deviation.
-	double sd = calculateSaliencySD(keypoints);
-	for (const auto &point : keypoints)
-	{
-		if (calculateSaliencyScore(point) >= sd)
-		{
-			salient_points.push_back(point);
-		}
-	}
-	return salient_points;
-}
+// DetectedPoints mostSalientKeypoints(DetectedPoints &keypoints)
+// {
+// 	DetectedPoints salient_points;
+
+// 	// Calculate the standard deviation of the keypoints, and erase those
+// 	// that are lower than the standard deviation.
+// 	double sd = calculateSaliencySD(keypoints);
+// 	for (const auto &point : keypoints)
+// 	{
+// 		if (calculateSaliencyScore(point) >= sd)
+// 		{
+// 			salient_points.push_back(point);
+// 		}
+// 	}
+// 	return salient_points;
+// }
 
 SceneAnalyzer::SceneAnalyzer(const ros::ServiceClient &obj_detect_client,
                              std::function<SceneAnalyzer::ScenePoint(const SceneAnalyzer::ScenePoint &camera_point)> camera_to_world,
@@ -128,12 +130,53 @@ void SceneAnalyzer::addScenePoint(const ScreenPosition &screen_pos,
 	}
 }
 
+// DetectedPoints SceneAnalyzer::detectSalientPoints(const SceneAnalyzer::SceneData &data)
+// {
+// 	std::vector<cv::KeyPoint> keypoints;
+// 	cv::Ptr<cv::ORB> detector = cv::ORB::create();
+// 	detector->detect(cv_bridge::toCvCopy(data.image)->image, keypoints);
+// 	return mostSalientKeypoints(keypoints);
+// }
 DetectedPoints SceneAnalyzer::detectSalientPoints(const SceneAnalyzer::SceneData &data)
 {
-	std::vector<cv::KeyPoint> keypoints;
-	cv::Ptr<cv::ORB> detector = cv::ORB::create();
-	detector->detect(cv_bridge::toCvCopy(data.image)->image, keypoints);
-	return mostSalientKeypoints(keypoints);
+	DetectedPoints detected_points;
+
+	cv::Mat image = cv_bridge::toCvCopy(data.image)->image;
+	cv::Mat saliency_map;
+	cv::Mat binary_map;
+
+	// Blur the image before computing the saliency
+	cv::GaussianBlur(image, image, {0, 0}, 10);
+
+	cv::Ptr<cv::saliency::Saliency> saliency_algorithm = cv::saliency::Saliency::create("SPECTRAL_RESIDUAL");
+	if (saliency_algorithm->computeSaliency(image, saliency_map))
+	{
+		cv::saliency::StaticSaliencySpectralResidual spec;
+		spec.computeBinaryMap(saliency_map, binary_map);
+
+		cv::SimpleBlobDetector::Params params;
+		params.blobColor = 255;
+		params.filterByColor = true;
+		params.minCircularity = 0.0;
+		params.maxCircularity = 1.0;
+		params.filterByCircularity = true;
+		params.minConvexity = 0.0;
+		params.maxConvexity = 1.0;
+		params.filterByConvexity = true;
+		params.filterByArea = false;
+		params.filterByInertia = false;
+
+		cv::Ptr<cv::SimpleBlobDetector> blob_detector = cv::SimpleBlobDetector::create(params);
+		blob_detector->detect(binary_map, detected_points);
+
+		// cv::Mat img_with_pts;
+		// cv::drawKeypoints(binary_map, detected_points, img_with_pts);
+
+		// cv::imshow("Binary map", img_with_pts);
+		// cv::waitKey(0);
+	}
+
+	return detected_points;
 }
 
 DetectedObjectsImgPair SceneAnalyzer::detectObjects(const SceneAnalyzer::SceneData &data)
