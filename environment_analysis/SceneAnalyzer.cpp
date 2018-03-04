@@ -267,9 +267,6 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::createFakePoint(const SceneAnalyzer::Sc
 	return fake_point;
 }
 
-/*
-FOR SOME ODD REASON, ALL THE POINTS ARE UPSIDE DOWN WHEN VISUALISING!
-*/
 void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 {
 	cv::Mat cv_image = cv_bridge::toCvCopy(data.image)->image;
@@ -288,9 +285,13 @@ void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 
 		for (const auto &point : camera_points)
 		{
+			// Camera points are stored in a RHS-with-Y-up coordinate system.
+			// However, points on a screen are displayed in a RHS-with-Y-down
+			// coordinate system therefore x and y coordinates need to be
+			// flipped.
 			Eigen::MatrixXf v(4,1);
-			v(0,0) = point.x;
-			v(1,0) = point.y;
+			v(0,0) = -point.x;
+			v(1,0) = -point.y;
 			v(2,0) = point.z;
 			v(3,0) = 1.0f;
 
