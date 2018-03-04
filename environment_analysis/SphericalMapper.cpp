@@ -56,7 +56,7 @@ std::queue<SphericalMapper::GazePoint> SphericalMapper::createGazeSphere(float d
 	// results between -1 and 1, which will be used to define the normalised
 	// distance along the radius (-1 is the bottom of the sphere and 1 is the
 	// top).
-	for (float h = 0; h < quarter_circle; h += vert_step)
+	for (float h = 0.000001f; h < quarter_circle; h += vert_step)
 	{
 		// The y-coordinate determines how far the normalised distance is from
 		// the sphere's center, hence it can be used to determine the chord
