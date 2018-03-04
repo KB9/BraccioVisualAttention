@@ -106,7 +106,9 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 	if (gaze_director->hasNext())
 	{
 		GazeDirector::GazePoint gaze_point = gaze_director->next(scene_data);
-		braccio.lookAt(gaze_point.x, gaze_point.y, gaze_point.z);
+
+		bool use_periscope_mode = (gaze_point.type == GazeDirector::PointType::SCENE);
+		braccio.lookAt(gaze_point.x, gaze_point.y, gaze_point.z, use_periscope_mode);
 	}
 	else
 	{

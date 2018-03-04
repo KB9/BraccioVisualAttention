@@ -37,7 +37,7 @@ GazeDirector::GazePoint GazeDirector::next(const SceneAnalyzer::SceneData &data)
 	if (scene_analyzer.hasNext())
 	{
 		SceneAnalyzer::ScenePoint point = scene_analyzer.next();
-		return {point.x, point.y, point.z};
+		return {point.x, point.y, point.z, PointType::SALIENT};
 	}
 	// If there are no more points in the scene to be attended to, look at a new
 	// scene and find interesting points within it
@@ -46,12 +46,12 @@ GazeDirector::GazePoint GazeDirector::next(const SceneAnalyzer::SceneData &data)
 		SphericalMapper::GazePoint gaze_point = spherical_mapper.next();
 		auto braccio_point = toBraccioKinematicsAxes({gaze_point.x, gaze_point.y, gaze_point.z});
 		analyze_scene = true;
-		return {braccio_point.x, braccio_point.y, braccio_point.z};
+		return {braccio_point.x, braccio_point.y, braccio_point.z, PointType::SCENE};
 	}
 	else
 	{
 		// TODO: Do something better than this
-		return {0, 0, 0};
+		return {0, 0, 0, PointType::NONE};
 	}
 }
 

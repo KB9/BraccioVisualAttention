@@ -19,7 +19,7 @@ public:
 	void initGazeFeedback(ros::NodeHandle &nh,
 	                      void (*subscriberCallback)(std_msgs::Bool));
 
-	bool lookAt(float x, float y, float z);
+	bool lookAt(float x, float y, float z, bool periscope_mode = false);
 
 	float getEffectorX();
 	float getEffectorY();

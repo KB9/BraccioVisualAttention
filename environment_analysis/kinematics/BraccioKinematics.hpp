@@ -70,7 +70,7 @@ struct JointConstraints
 class BraccioKinematics
 {
 public:
-	bool lookAt(float x, float y, float z, BraccioJointAngles &braccio_angles);
+	bool lookAt(float x, float y, float z, BraccioJointAngles &braccio_angles, bool periscope_mode = false);
 	Pos3d getEffectorPos3d();
 
 	void setJointAngles(const BraccioJointAngles &angles);

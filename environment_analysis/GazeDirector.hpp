@@ -13,9 +13,17 @@
 class GazeDirector
 {
 public:
+	enum class PointType
+	{
+		NONE,
+		SCENE,
+		SALIENT
+	};
+
 	struct GazePoint
 	{
 		float x, y, z;
+		PointType type;
 	};
 
 	GazeDirector(const ros::ServiceClient &obj_detect_client,

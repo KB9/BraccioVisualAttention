@@ -31,11 +31,11 @@ void Braccio::initGazeFeedback(ros::NodeHandle &nh,
 	}
 }
 
-bool Braccio::lookAt(float x, float y, float z)
+bool Braccio::lookAt(float x, float y, float z, bool periscope_mode)
 {
 	// Send the joint angles to the Braccio if they are accepted by the IK
 	BraccioJointAngles new_angles;
-	bool ok = kinematics.lookAt(x, y, z, new_angles);
+	bool ok = kinematics.lookAt(x, y, z, new_angles, periscope_mode);
 	if (ok)
 		setJointAngles(new_angles);
 	else

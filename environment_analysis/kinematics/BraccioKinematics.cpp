@@ -254,7 +254,7 @@ std::pair<Angles, bool> solve3d_constrained_periscope(Pos3d tgt, Lengths lengths
 	return {{base_angle, toRadians(90.0f), 0.0f, angle_2d}, true};	
 }
 
-bool BraccioKinematics::lookAt(float x, float y, float z, BraccioJointAngles &braccio_angles)
+bool BraccioKinematics::lookAt(float x, float y, float z, BraccioJointAngles &braccio_angles, bool periscope_mode)
 {
 	Lengths lengths{SHOULDER_LENGTH, ELBOW_LENGTH, WRIST_LENGTH};
 	JointConstraints constraints{{SHOULDER_CONSTRAINT_MIN, SHOULDER_CONSTRAINT_MAX},
@@ -262,7 +262,13 @@ bool BraccioKinematics::lookAt(float x, float y, float z, BraccioJointAngles &br
 								 {WRIST_CONSTRAINT_MIN, WRIST_CONSTRAINT_MAX}};
 	Pos3d target{x, y, z};
 
-	auto result = solve3d_constrained(target, lengths, constraints, {0, PI});
+	// Use periscope mode if requested (does not use kinematic solver)
+	std::pair<Angles, bool> result;
+	if (periscope_mode)
+		result = solve3d_constrained_periscope(target, lengths, constraints, {0, PI});
+	else
+		result = solve3d_constrained(target, lengths, constraints, {0, PI});
+
 	bool success = result.second;
 	if (success)
 	{
