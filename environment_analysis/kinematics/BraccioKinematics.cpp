@@ -221,6 +221,39 @@ std::pair<Angles, bool> solve3d_constrained(Pos3d tgt, Lengths lengths, JointCon
 	return {{base_angle, solution_2d.first.q1, solution_2d.first.q2, solution_2d.first.q3}, true};
 }
 
+std::pair<Angles, bool> solve3d_constrained_periscope(Pos3d tgt, Lengths lengths, JointConstraints constraints, Constraint base_constraint = {0, 2 * PI})
+{
+	std::pair<Angles, bool> empty = { {}, false };
+
+	// Convert the 3d representation to a 2d one.
+	float base_angle = atan2(tgt.y, tgt.x);
+
+	// From 0 to 2pi
+	if (base_angle < 0.0f) base_angle = 2 * PI + base_angle;
+
+	int negate = 1;
+
+	if (!satisfies(base_constraint, base_angle)) {
+		base_angle -= PI;
+		negate = -1;
+		if (!satisfies(base_constraint, base_angle)) {
+			return empty;
+		}
+	}
+	// Hypoteneuse is always positive, so need to negate it to look behind
+	float new_x = std::hypot(tgt.x, tgt.y) * negate;
+	float new_y = tgt.z;
+	Pos2d new_tgt = {new_x, new_y};
+
+	// Compute the arctangent between the effector horizontal stretch over the
+	// effector height and set this as the wrist angle
+	float angle_2d = -std::atan2(new_x, new_y);
+	if (angle_2d < constraints.c3.min || angle_2d > constraints.c3.max)
+		return empty;
+
+	return {{base_angle, toRadians(90.0f), 0.0f, angle_2d}, true};	
+}
+
 bool BraccioKinematics::lookAt(float x, float y, float z, BraccioJointAngles &braccio_angles)
 {
 	Lengths lengths{SHOULDER_LENGTH, ELBOW_LENGTH, WRIST_LENGTH};
