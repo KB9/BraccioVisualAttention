@@ -4,6 +4,7 @@
 #include <vector>
 #include <deque>
 #include <utility>
+#include <string>
 
 // ROS
 #include "ros/ros.h"
@@ -44,6 +45,15 @@ public:
 	struct ScenePoint
 	{
 		float x, y, z;
+		bool is_estimate;
+		
+		enum class Type
+		{
+			SALIENT,
+			OBJECT
+		};
+		Type type;
+		std::string description;
 	};
 
 	struct ScreenPosition
@@ -79,7 +89,9 @@ private:
 	DetectedObjectsImgPair detectObjects(const SceneAnalyzer::SceneData &data);
 
 	void addScenePoint(const ScreenPosition &screen_pos, const SceneData &data,
-	                   const PointCloud &cloud);
+	                   const PointCloud &cloud,
+	                   const ScenePoint::Type &point_type,
+	                   const std::string &description);
 
 	SceneAnalyzer::ScenePoint to3dPoint(const SceneAnalyzer::ScreenPosition &screen,
 	                                    const SceneAnalyzer::SceneData &data,

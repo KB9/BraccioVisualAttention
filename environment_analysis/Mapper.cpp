@@ -98,7 +98,12 @@ SceneAnalyzer::ScenePoint gazeSolverToBraccio(const SceneAnalyzer::ScenePoint &g
 	float rx = result(0,0) + braccio.getEffectorX();
 	float ry = result(1,0) + braccio.getEffectorY();
 	float rz = result(2,0) + braccio.getEffectorZ();
-	return {rx, ry, rz};
+
+	bool is_estimate = gaze_solver_point.is_estimate;
+	auto type = gaze_solver_point.type;
+	std::string description = gaze_solver_point.description;
+
+	return {rx, ry, rz, is_estimate, type, description};
 }
 
 void onBraccioGazeFocusedCallback(std_msgs::Bool value)

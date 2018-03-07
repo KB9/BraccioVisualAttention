@@ -99,12 +99,12 @@ void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 	for (const auto &obj : objs_img_pair.first)
 	{
 		auto screen_pos = toScreen(obj);
-		addScenePoint(screen_pos, data, cloud);
+		addScenePoint(screen_pos, data, cloud, ScenePoint::Type::OBJECT, "Object: " + obj.obj_class);
 	}
 	for (const auto &salient_point : salient_points)
 	{
 		auto screen_pos = toScreen(salient_point);
-		addScenePoint(screen_pos, data, cloud);
+		addScenePoint(screen_pos, data, cloud, ScenePoint::Type::SALIENT, "Salient point");
 	}
 
 	recordAnalysisPose(data);
@@ -112,7 +112,9 @@ void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 
 void SceneAnalyzer::addScenePoint(const ScreenPosition &screen_pos,
                                   const SceneData &data,
-                                  const PointCloud &cloud)
+                                  const PointCloud &cloud,
+                                  const ScenePoint::Type &point_type,
+                                  const std::string &description)
 {
 	const float FOCUS_THRESHOLD = 0.5f;
 	const float FOCUS_RADIUS = 100.0f;
@@ -122,6 +124,11 @@ void SceneAnalyzer::addScenePoint(const ScreenPosition &screen_pos,
 	float score = focus_mapper.calculate(world_point.x, world_point.y, world_point.z);
 	if (score < FOCUS_THRESHOLD)
 	{
+		point.type = point_type;
+		point.description = description;
+		world_point.type = point_type;
+		world_point.description = description;
+
 		screen_points.push_back(screen_pos); // DEBUGGING
 
 		camera_points.push_back(point);
@@ -226,8 +233,9 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::to3dPoint(const SceneAnalyzer::ScreenPo
 	float pcl_x = point.y;
 	float pcl_y = point.z;
 	float pcl_z = point.x;
+	bool is_estimate = false;
 
-	return {pcl_x, pcl_y, pcl_z};
+	return {pcl_x, pcl_y, pcl_z, is_estimate};
 }
 
 SceneAnalyzer::ScreenPosition SceneAnalyzer::toScreen(const tf_object_detection::DetectedObject &object)
@@ -263,6 +271,8 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::createFakePoint(const SceneAnalyzer::Sc
 	fake_point.z = 20.0f;
 	fake_point.x = fake_point.z * tanf(angle_x);
 	fake_point.y = fake_point.z * tanf(angle_y);
+
+	fake_point.is_estimate = true;
 
 	return fake_point;
 }
@@ -310,9 +320,15 @@ void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 				float screen_y = (y * height) / (2.0f * w) + half_height;
 
 				if (!is_goal_point_color_set)
+				{
 					cv::circle(cv_image, {screen_x, screen_y}, 10, {0,0,255,255}, 4);
+					cv::putText(cv_image, point.description, {screen_x, screen_y - 5}, cv::FONT_HERSHEY_SIMPLEX, 0.5, {0,0,255,255});
+				}
 				else
+				{
 					cv::circle(cv_image, {screen_x, screen_y}, 5, {0,255,0,255}, 2);
+					cv::putText(cv_image, point.description, {screen_x, screen_y - 5}, cv::FONT_HERSHEY_SIMPLEX, 0.5, {0,255,0,255});
+				}
 			}
 			is_goal_point_color_set = true;
 		}
