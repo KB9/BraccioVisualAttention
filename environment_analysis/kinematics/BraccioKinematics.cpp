@@ -186,7 +186,7 @@ std::pair<JointAngles, bool> solve2d_constrained(Pos2d tgt, Lengths lengths, Joi
 	return {result, limit > 0};
 }
 
-std::pair<Angles, bool> solve3d_constrained(Pos3d tgt, Lengths lengths, JointConstraints constraints, Constraint base_constraint = {0, 2 * PI}, float delta = 0.01f, int limit = 200)
+std::pair<Angles, bool> solve3d_constrained(Pos3d tgt, Lengths lengths, JointConstraints constraints, Constraint base_constraint = {0, 2 * PI}, float delta = 0.01f, int limit = 1000)
 {
 	std::pair<Angles, bool> empty = { {}, false };
 
