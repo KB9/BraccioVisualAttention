@@ -53,6 +53,7 @@ void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 	{
 		auto screen_pos = toScreen(obj);
 		addScenePoint(screen_pos, data, cloud, ScenePoint::Type::OBJECT, "Object: " + obj.obj_class);
+		ROS_INFO("Object detected: %s", obj.obj_class.c_str());
 	}
 	for (const auto &salient_point : salient_points)
 	{
