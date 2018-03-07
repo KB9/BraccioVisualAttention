@@ -25,9 +25,6 @@ GazeDirector::GazePoint GazeDirector::next(const SceneAnalyzer::SceneData &data)
 	// scene
 	if (analyze_scene)
 	{
-		// Sleep for 1 second to allow the Braccio to stabilize
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-		
 		scene_analyzer.analyze(data);
 		analyze_scene = false;
 	}
