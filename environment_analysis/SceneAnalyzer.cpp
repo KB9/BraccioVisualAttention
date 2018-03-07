@@ -11,51 +11,6 @@
 
 #include <opencv2/saliency.hpp>
 
-// double calculateSaliencyScore(const cv::KeyPoint &keypoint)
-// {
-// 	const int x = keypoint.pt.x;
-// 	const int y = keypoint.pt.y;
-// 	const int delta = keypoint.octave;
-// 	const double k = 0.01;
-
-// 	return x * y * delta * k;
-// }
-
-// double calculateSaliencyMean(const DetectedPoints &points)
-// {
-// 	double mean = 0;
-// 	for (const auto& point : points)
-// 		mean += calculateSaliencyScore(point);
-// 	mean /= points.size();
-// 	return mean;
-// }
-
-// double calculateSaliencySD(const DetectedPoints &points)
-// {
-// 	double mean = calculateSaliencyMean(points);
-// 	double sum_of_differences = 0;
-// 	for (const auto& point : points)
-// 		sum_of_differences += std::pow(calculateSaliencyScore(point) - mean, 2);
-// 	return std::sqrt(((double)1 / (double)points.size()) * sum_of_differences);
-// }
-
-// DetectedPoints mostSalientKeypoints(DetectedPoints &keypoints)
-// {
-// 	DetectedPoints salient_points;
-
-// 	// Calculate the standard deviation of the keypoints, and erase those
-// 	// that are lower than the standard deviation.
-// 	double sd = calculateSaliencySD(keypoints);
-// 	for (const auto &point : keypoints)
-// 	{
-// 		if (calculateSaliencyScore(point) >= sd)
-// 		{
-// 			salient_points.push_back(point);
-// 		}
-// 	}
-// 	return salient_points;
-// }
-
 SceneAnalyzer::SceneAnalyzer(const ros::ServiceClient &obj_detect_client,
                              std::function<SceneAnalyzer::ScenePoint(const SceneAnalyzer::ScenePoint &camera_point)> camera_to_world,
                              float diag_fov)
@@ -70,8 +25,6 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::next()
 	auto point = points.front();
 	points.pop_front();
 	camera_points.pop_front();
-
-	screen_points.pop_front(); // DEBUGGING
 
 	return point;
 }
@@ -129,21 +82,12 @@ void SceneAnalyzer::addScenePoint(const ScreenPosition &screen_pos,
 		world_point.type = point_type;
 		world_point.description = description;
 
-		screen_points.push_back(screen_pos); // DEBUGGING
-
 		camera_points.push_back(point);
 		points.push_back(world_point);
 		focus_mapper.add(world_point.x, world_point.y, world_point.z, FOCUS_RADIUS);
 	}
 }
 
-// DetectedPoints SceneAnalyzer::detectSalientPoints(const SceneAnalyzer::SceneData &data)
-// {
-// 	std::vector<cv::KeyPoint> keypoints;
-// 	cv::Ptr<cv::ORB> detector = cv::ORB::create();
-// 	detector->detect(cv_bridge::toCvCopy(data.image)->image, keypoints);
-// 	return mostSalientKeypoints(keypoints);
-// }
 DetectedPoints SceneAnalyzer::detectSalientPoints(const SceneAnalyzer::SceneData &data)
 {
 	DetectedPoints detected_points;
@@ -175,12 +119,6 @@ DetectedPoints SceneAnalyzer::detectSalientPoints(const SceneAnalyzer::SceneData
 
 		cv::Ptr<cv::SimpleBlobDetector> blob_detector = cv::SimpleBlobDetector::create(params);
 		blob_detector->detect(binary_map, detected_points);
-
-		// cv::Mat img_with_pts;
-		// cv::drawKeypoints(binary_map, detected_points, img_with_pts);
-
-		// cv::imshow("Binary map", img_with_pts);
-		// cv::waitKey(0);
 	}
 
 	return detected_points;
@@ -288,10 +226,6 @@ void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)
 		bool is_goal_point_color_set = false;
 		float width = cv_image.cols;
 		float height = cv_image.rows;
-
-		// DEBUGGING
-		for (const auto &spt : screen_points)
-			cv::circle(cv_image, {spt.x, spt.y}, 5, {255,0,0,255}, 2);
 
 		for (const auto &point : camera_points)
 		{
