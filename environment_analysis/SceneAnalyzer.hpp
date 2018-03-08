@@ -25,8 +25,6 @@
 #include "tf_object_detection/ObjectDetection.h"
 #include "tf_object_detection/DetectedObject.h"
 
-#include "FocusMapper.hpp"
-
 using DetectedPoints = std::vector<cv::KeyPoint>;
 using DetectedObjects = std::vector<tf_object_detection::DetectedObject>;
 using DetectedObjectsImgPair = std::pair<DetectedObjects, sensor_msgs::Image>;
@@ -80,8 +78,6 @@ private:
 	std::function<ScenePoint(const ScenePoint &camera_point)> camera_to_world;
 
 	Eigen::MatrixXf perspective, analysis_pose;
-
-	FocusMapper focus_mapper;
 
 	DetectedPoints detectSalientPoints(const SceneAnalyzer::SceneData &data);
 	DetectedObjectsImgPair detectObjects(const SceneAnalyzer::SceneData &data);

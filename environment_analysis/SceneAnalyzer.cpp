@@ -39,7 +39,6 @@ void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 	// Clear the last queue of points that were detected
 	points.clear();
 	camera_points.clear();
-	focus_mapper.clear();
 
 	DetectedObjectsImgPair objs_img_pair = detectObjects(data);
 	DetectedPoints salient_points = detectSalientPoints(data);
@@ -70,23 +69,16 @@ void SceneAnalyzer::addScenePoint(const ScreenPosition &screen_pos,
                                   const ScenePoint::Type &point_type,
                                   const std::string &description)
 {
-	const float FOCUS_THRESHOLD = 0.5f;
-	const float FOCUS_RADIUS = 100.0f;
-
 	auto point = to3dPoint(screen_pos, data, cloud);
-	auto world_point = camera_to_world(point);
-	float score = focus_mapper.calculate(world_point.x, world_point.y, world_point.z);
-	if (score < FOCUS_THRESHOLD)
-	{
-		point.type = point_type;
-		point.description = description;
-		world_point.type = point_type;
-		world_point.description = description;
+	point.type = point_type;
+	point.description = description;
 
-		camera_points.push_back(point);
-		points.push_back(world_point);
-		focus_mapper.add(world_point.x, world_point.y, world_point.z, FOCUS_RADIUS);
-	}
+	auto world_point = camera_to_world(point);
+	world_point.type = point_type;
+	world_point.description = description;
+
+	camera_points.push_back(point);
+	points.push_back(world_point);
 }
 
 DetectedPoints SceneAnalyzer::detectSalientPoints(const SceneAnalyzer::SceneData &data)
@@ -98,7 +90,7 @@ DetectedPoints SceneAnalyzer::detectSalientPoints(const SceneAnalyzer::SceneData
 	cv::Mat binary_map;
 
 	// Blur the image before computing the saliency
-	cv::GaussianBlur(image, image, {0, 0}, 10);
+	cv::GaussianBlur(image, image, {3, 3}, 5);
 
 	cv::Ptr<cv::saliency::Saliency> saliency_algorithm = cv::saliency::Saliency::create("SPECTRAL_RESIDUAL");
 	if (saliency_algorithm->computeSaliency(image, saliency_map))
