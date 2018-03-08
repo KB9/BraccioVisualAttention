@@ -73,6 +73,9 @@ void SceneAnalyzer::addScenePoint(const ScreenPosition &screen_pos,
 	point.type = point_type;
 	point.description = description;
 
+	if (point.is_estimate)
+		point.description += " (Estimate)";
+
 	auto world_point = camera_to_world(point);
 	world_point.type = point_type;
 	world_point.description = description;
