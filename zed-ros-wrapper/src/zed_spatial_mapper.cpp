@@ -14,7 +14,7 @@ ZedSpatialMapper::ZedSpatialMapper(std::shared_ptr<sl::Camera> zed)
 	this->zed = zed;
 
 	// Configure Spatial Mapping and filtering parameters
-    spatial_mapping_params.range_meter = sl::SpatialMappingParameters::get(sl::SpatialMappingParameters::MAPPING_RANGE_FAR);
+    spatial_mapping_params.range_meter = sl::SpatialMappingParameters::get(sl::SpatialMappingParameters::MAPPING_RANGE_NEAR);
     spatial_mapping_params.resolution_meter = sl::SpatialMappingParameters::get(sl::SpatialMappingParameters::MAPPING_RESOLUTION_LOW);
     spatial_mapping_params.save_texture = true;
     spatial_mapping_params.max_memory_usage = 512;
