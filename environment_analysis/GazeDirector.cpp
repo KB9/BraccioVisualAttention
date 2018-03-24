@@ -11,9 +11,9 @@ SceneAnalyzer::ScenePoint toBraccioKinematicsAxes(const SceneAnalyzer::ScenePoin
 
 GazeDirector::GazeDirector(const ros::ServiceClient &obj_detect_client,
                            std::function<SceneAnalyzer::ScenePoint(const SceneAnalyzer::ScenePoint &camera_point)> camera_to_world,
-                           float diag_fov) :
-	spherical_mapper(diag_fov),
-	scene_analyzer(obj_detect_client, camera_to_world, diag_fov),
+                           float fov_horiz, float fov_vert) :
+	spherical_mapper(fov_horiz, fov_vert),
+	scene_analyzer(obj_detect_client, camera_to_world, fov_horiz, fov_vert),
 	analyze_scene(false)
 {
 

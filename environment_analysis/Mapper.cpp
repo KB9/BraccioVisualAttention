@@ -46,6 +46,7 @@ std::unique_ptr<GazeDirector> gaze_director = nullptr;
 SceneAnalyzer::SceneData scene_data;
 
 ros::ServiceClient mesh_save_client;
+ros::ServiceClient obj_detect_client;
 
 SceneAnalyzer::ScenePoint gazeSolverToBraccio(const SceneAnalyzer::ScenePoint &gaze_solver_point)
 {
@@ -130,7 +131,8 @@ void onBraccioGazeFocusedCallback(std_msgs::Bool value)
 void imageCallback(const sensor_msgs::Image &img_msg)
 {
 	scene_data.image = img_msg;
-	gaze_director->visualize(scene_data);
+	if (gaze_director != nullptr)
+		gaze_director->visualize(scene_data);
 }
 
 void cloudMapCallback(const sensor_msgs::PointCloud2Ptr& cloud_msg)
@@ -141,6 +143,11 @@ void cloudMapCallback(const sensor_msgs::PointCloud2Ptr& cloud_msg)
 void meshCallback(const zed_wrapper::Mesh& mesh_msg)
 {
 	scene_data.mesh = mesh_msg;
+	if (gaze_director == nullptr)
+		gaze_director = std::make_unique<GazeDirector>(obj_detect_client,
+		                                               gazeSolverToBraccio,
+		                                               toRadians(mesh_msg.h_fov),
+		                                               toRadians(mesh_msg.v_fov));
 }
 
 int main(int argc, char **argv)
@@ -160,12 +167,11 @@ int main(int argc, char **argv)
 	ros::Subscriber mesh_sub;
 	mesh_sub = node_handle.subscribe("/zed/mesh", 1, meshCallback);
 
-	// Set up this node as a client of the TensorFlow object_detection service
-	ros::ServiceClient client = node_handle.serviceClient<tf_object_detection::ObjectDetection>("object_detection");
-
-	gaze_director = std::make_unique<GazeDirector>(client, gazeSolverToBraccio, 1.9198621772f);
-
+	obj_detect_client = node_handle.serviceClient<tf_object_detection::ObjectDetection>("object_detection");
 	mesh_save_client = node_handle.serviceClient<zed_wrapper::SaveSpatialMap>("/zed/SaveSpatialMap");
+
+	// Spin once to get initial scene data and create gaze director
+	ros::spinOnce();
 
 	braccio.initGazeFeedback(node_handle, onBraccioGazeFocusedCallback);
 	braccio.lookAt(5.0f, 5.0f, 20.0f);

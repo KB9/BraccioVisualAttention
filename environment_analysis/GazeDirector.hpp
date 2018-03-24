@@ -28,7 +28,7 @@ public:
 
 	GazeDirector(const ros::ServiceClient &obj_detect_client,
 	             std::function<SceneAnalyzer::ScenePoint(const SceneAnalyzer::ScenePoint &camera_point)> camera_to_world,
-	             float diag_fov);
+	             float fov_horiz, float fov_vert);
 
 	GazePoint next(const SceneAnalyzer::SceneData &data);
 	bool hasNext();

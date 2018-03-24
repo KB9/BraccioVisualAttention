@@ -13,10 +13,11 @@
 
 SceneAnalyzer::SceneAnalyzer(const ros::ServiceClient &obj_detect_client,
                              std::function<SceneAnalyzer::ScenePoint(const SceneAnalyzer::ScenePoint &camera_point)> camera_to_world,
-                             float diag_fov)
+                             float fov_horiz, float fov_vert)
 {
 	this->obj_detect_client = obj_detect_client;
-	this->diag_fov = diag_fov;
+	this->fov_horiz = fov_horiz;
+	this->fov_vert = fov_vert;
 	this->camera_to_world = camera_to_world;
 }
 
@@ -142,7 +143,7 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::to3dPoint(const SceneAnalyzer::ScreenPo
 	if (data.cloud == nullptr || !cloud.isOrganized())
 	{
 		return createFakePoint(screen,
-		                       diag_fov, data.image.width, data.image.height);
+		                       fov_horiz, fov_vert, data.image.width, data.image.height);
 	}
 
 	// If the PCL point isn't finite, the 3D position can't be calculated
@@ -150,7 +151,7 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::to3dPoint(const SceneAnalyzer::ScreenPo
 	if (!pcl::isFinite(point))
 	{
 		return createFakePoint(screen,
-		                       diag_fov, data.image.width, data.image.height);
+		                       fov_horiz, fov_vert, data.image.width, data.image.height);
 	}
 
 	/*
@@ -192,17 +193,17 @@ SceneAnalyzer::ScreenPosition SceneAnalyzer::toScreen(const cv::KeyPoint &keypoi
 }
 
 SceneAnalyzer::ScenePoint SceneAnalyzer::createFakePoint(const SceneAnalyzer::ScreenPosition &screen,
-                                                         float diag_fov,
+                                                         float fov_horiz, float fov_vert,
                                                          unsigned screen_width, unsigned screen_height)
 {
-	float diag_length = std::sqrt(std::pow(screen_width,2) + std::pow(screen_height,2));
-	float rads_per_pixel = diag_fov / diag_length;
+	float rads_per_horiz_pixel = fov_horiz / screen_width;
+	float rads_per_vert_pixel = fov_vert / screen_height;
 
 	unsigned screen_cx = screen_width / 2;
 	unsigned screen_cy = screen_height / 2;
 
-	float angle_x = (screen_cx - screen.x) * rads_per_pixel;
-	float angle_y = (screen_cy - screen.y) * rads_per_pixel;
+	float angle_x = (screen_cx - screen.x) * rads_per_horiz_pixel;
+	float angle_y = (screen_cy - screen.y) * rads_per_vert_pixel;
 
 	SceneAnalyzer::ScenePoint fake_point;
 	fake_point.z = 20.0f;

@@ -61,7 +61,7 @@ public:
 
 	SceneAnalyzer(const ros::ServiceClient &obj_detect_client,
 	              std::function<ScenePoint(const ScenePoint &camera_point)> camera_to_world,
-	              float diag_fov);
+	              float fov_horiz, float fov_vert);
 
 	void analyze(const SceneAnalyzer::SceneData &data);
 	void visualize(const SceneAnalyzer::SceneData &data);
@@ -74,7 +74,7 @@ private:
 	std::deque<ScenePoint> points;
 	std::deque<ScenePoint> camera_points;
 
-	float diag_fov;
+	float fov_horiz, fov_vert;
 	std::function<ScenePoint(const ScenePoint &camera_point)> camera_to_world;
 
 	Eigen::MatrixXf perspective, analysis_pose;
@@ -94,7 +94,7 @@ private:
 	SceneAnalyzer::ScreenPosition toScreen(const cv::KeyPoint &keypoint);
 
 	SceneAnalyzer::ScenePoint createFakePoint(const SceneAnalyzer::ScreenPosition &screen,
-	                                          float diag_fov,
+	                                          float fov_horiz, float fov_vert,
 	                                          unsigned screen_width, unsigned screen_height);
 
 	void leftToRightSort(DetectedPoints &points);

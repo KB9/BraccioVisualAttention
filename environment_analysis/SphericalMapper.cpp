@@ -4,12 +4,13 @@
 
 #include "ros/ros.h"
 
-SphericalMapper::SphericalMapper(float diag_fov)
+SphericalMapper::SphericalMapper(float fov_horiz, float fov_vert)
 {
 	this->current_gaze_index = 0;
-	this->diag_fov = diag_fov;
+	this->fov_horiz = fov_horiz;
+	this->fov_vert = fov_vert;
 
-	gaze_points = createGazeSphere(diag_fov, 5.0f);
+	gaze_points = createGazeSphere(fov_horiz, fov_vert, 5.0f);
 }
 
 SphericalMapper::GazePoint SphericalMapper::next()
@@ -40,14 +41,15 @@ float chordLength(float norm_dist_along_radius, float radius = 1.0f)
 		return 2.0f * radius;
 }
 
-std::queue<SphericalMapper::GazePoint> SphericalMapper::createGazeSphere(float diag_fov,
+std::queue<SphericalMapper::GazePoint> SphericalMapper::createGazeSphere(float fov_horiz,
+                                                                         float fov_vert,
                                                                          float radius = 1.0f)
 {
 	// Define all the points that make up a sphere using a step interval.
 	std::queue<SphericalMapper::GazePoint> points;
 
-	const float horiz_step = diag_fov;
-	const float vert_step = diag_fov;
+	const float horiz_step = fov_horiz;
+	const float vert_step = fov_vert;
 	const float full_circle = 2.0f * 3.141592654f;
 	const float half_circle = 3.141592654f;
 	const float quarter_circle = 0.5f * half_circle;

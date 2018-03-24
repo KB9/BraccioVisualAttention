@@ -14,8 +14,8 @@ ZedSpatialMapper::ZedSpatialMapper(std::shared_ptr<sl::Camera> zed)
 	this->zed = zed;
 
 	// Configure Spatial Mapping and filtering parameters
-    spatial_mapping_params.range_meter = sl::SpatialMappingParameters::get(sl::SpatialMappingParameters::MAPPING_RANGE_NEAR);
-    spatial_mapping_params.resolution_meter = sl::SpatialMappingParameters::get(sl::SpatialMappingParameters::MAPPING_RESOLUTION_LOW);
+    spatial_mapping_params.range_meter = sl::SpatialMappingParameters::get(sl::SpatialMappingParameters::MAPPING_RANGE_MEDIUM);
+    spatial_mapping_params.resolution_meter = sl::SpatialMappingParameters::get(sl::SpatialMappingParameters::MAPPING_RESOLUTION_MEDIUM);
     spatial_mapping_params.save_texture = true;
     spatial_mapping_params.max_memory_usage = 512;
     spatial_mapping_params.use_chunk_only = true; // If we use chunks we do not need to keep the mesh consistent
@@ -135,6 +135,10 @@ void ZedSpatialMapper::publish(ros::Publisher &pub_mesh)
 		// Update the pose and projection
 		mesh_msg.perspective = toMatrixMsg(perspective);
 		mesh_msg.pose = toMatrixMsg(pose.pose_data);
+
+        sl::CameraParameters camLeft = zed->getCameraInformation().calibration_parameters.left_cam;
+        mesh_msg.h_fov = camLeft.h_fov;
+        mesh_msg.v_fov = camLeft.v_fov;
 
 		pub_mesh.publish(mesh_msg);
 	}
