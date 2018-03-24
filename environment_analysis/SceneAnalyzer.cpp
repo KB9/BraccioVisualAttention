@@ -43,21 +43,24 @@ void SceneAnalyzer::analyze(const SceneAnalyzer::SceneData &data)
 	DetectedObjectsImgPair objs_img_pair = detectObjects(data);
 	DetectedPoints salient_points = detectSalientPoints(data);
 
+	// Sort the detected points in left to right screen order
+	leftToRightSort(salient_points);
+
 	// Convert the PCL ROS msg into a PointCloud before pulling points from it
 	PointCloud cloud;
 	pcl::fromROSMsg(*(data.cloud), cloud);
 
-	// Attend objects first, then attend the salient points
+	// Attend salient points first, then attend the objects
+	for (const auto &salient_point : salient_points)
+	{
+		auto screen_pos = toScreen(salient_point);
+		addScenePoint(screen_pos, data, cloud, ScenePoint::Type::SALIENT, "Salient point");
+	}
 	for (const auto &obj : objs_img_pair.first)
 	{
 		auto screen_pos = toScreen(obj);
 		addScenePoint(screen_pos, data, cloud, ScenePoint::Type::OBJECT, "Object: " + obj.obj_class);
 		ROS_INFO("Object detected: %s", obj.obj_class.c_str());
-	}
-	for (const auto &salient_point : salient_points)
-	{
-		auto screen_pos = toScreen(salient_point);
-		addScenePoint(screen_pos, data, cloud, ScenePoint::Type::SALIENT, "Salient point");
 	}
 
 	recordAnalysisPose(data);
@@ -209,6 +212,14 @@ SceneAnalyzer::ScenePoint SceneAnalyzer::createFakePoint(const SceneAnalyzer::Sc
 	fake_point.is_estimate = true;
 
 	return fake_point;
+}
+
+void SceneAnalyzer::leftToRightSort(DetectedPoints &points)
+{
+	std::sort(points.begin(), points.end(), [](const auto &point1, const auto &point2)
+	{
+		return point1.pt.x < point2.pt.x;
+	});
 }
 
 void SceneAnalyzer::visualize(const SceneAnalyzer::SceneData &data)

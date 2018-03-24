@@ -97,6 +97,8 @@ private:
 	                                          float diag_fov,
 	                                          unsigned screen_width, unsigned screen_height);
 
+	void leftToRightSort(DetectedPoints &points);
+
 	void recordAnalysisPose(const SceneAnalyzer::SceneData &data);
 	Eigen::MatrixXf getPoseTransformSinceAnalysis(const SceneAnalyzer::SceneData &data);
 	Eigen::MatrixXf toEigenMatrix(const zed_wrapper::Matrix4f &msg);
