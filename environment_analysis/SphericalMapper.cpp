@@ -33,12 +33,8 @@ float chordLength(float norm_dist_along_radius, float radius = 1.0f)
 	const float half_circle = 3.141592654f;
 	const float quarter_circle = 0.5f * half_circle;
 
-	float theta = quarter_circle * norm_dist_along_radius;
-	// Prevent a divide by zero
-	if (sinf(theta) != 0.0f)
-		return (radius / sinf(theta)) * sinf(half_circle - (2 * theta));
-	else
-		return 2.0f * radius;
+	float angle = cos(norm_dist_along_radius / radius) * 2.0f;
+	return 2.0f * radius * sinf(angle / 2.0f);
 }
 
 std::queue<SphericalMapper::GazePoint> SphericalMapper::createGazeSphere(float fov_horiz,
