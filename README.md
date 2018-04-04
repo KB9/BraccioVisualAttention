@@ -7,6 +7,7 @@ This project uses a [ZED stereo camera](https://www.stereolabs.com/) mounted on 
 ### Requirements
 * Ubuntu 16.04 LTS
 * ROS Kinetic
+* ZED SDK
 
 ### Steps
 Create a catkin workspace:
@@ -82,6 +83,6 @@ If successful, a message stating that the service is ready for object detection 
 To start the environment analyser:
 ```
 cd ~/catkin_ws
-rosrun environment_analysis rtabmap_ros_listener
+rosrun environment_analysis mapper
 ```
 A window displaying the camera feed and various debug-related data should be displayed, indicating that the environment analysis is currently active.

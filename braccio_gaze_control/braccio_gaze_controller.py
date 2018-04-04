@@ -6,9 +6,11 @@ import json
 import rospy
 from std_msgs.msg import Int32MultiArray, Bool
 
+import time
+
 payload = {}
 headers = {'content-type': 'application/json'}
-ip = 'http://192.168.0.71:4000/jsonrpc'
+ip = 'http://10.42.0.181:4000/jsonrpc'
 publisher = None
 
 def onAnglesReceived(angles):
@@ -43,6 +45,7 @@ def onAnglesReceived(angles):
 		print "Connection error. Is braccio_gaze_server.py running?"
 
 def onGazeFocused():
+	time.sleep(1)
 	publisher.publish(True)
 
 def main():

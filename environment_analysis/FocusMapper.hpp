@@ -19,6 +19,7 @@ public:
 	FocusMapper();
 
 	void add(float x, float y, float z, float radius = 10.0f);
+	void clear();
 	float calculate(float x, float y, float z);
 	void decay(float rate = 1.0f);
 private:
